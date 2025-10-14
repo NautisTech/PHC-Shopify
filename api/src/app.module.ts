@@ -8,15 +8,28 @@ import { ClientesModule } from './modules/clientes/clientes.module';
 import { StockModule } from './modules/stock/stock.module';
 import { EncomendasModule } from './modules/encomendas/encomendas.module';
 
+// Auth & JWT
+// import { AuthService } from './auth/auth.service';
+// import { JwtModule } from '@nestjs/jwt';
+// import { PassportModule } from '@nestjs/passport';
+// import { JwtStrategy } from './strategies/jwt.strategy';
+// import { LocalStrategy } from './strategies/local.strategy';
+
 import 'dotenv/config';
 
 @Module({
   imports: [
     // CONFIGURAÇÃO - Variáveis de ambiente
-    ConfigModule.forRoot({
-      isGlobal: true,
-      envFilePath: '.env',
-    }),
+    ConfigModule.forRoot({ isGlobal: true }),
+
+    // AUTENTICAÇÃO - JWT
+    // PassportModule,
+    // JwtModule.register({
+    //   secret: process.env.JWT_SECRET || 'default-secret-change-in-production',
+    //   signOptions: {
+    //     expiresIn: process.env.JWT_EXPIRES_IN || '24h'
+    //   },
+    // }),
 
     // TYPEORM - Conexão com SQL Server
     TypeOrmModule.forRoot({
@@ -51,6 +64,9 @@ import 'dotenv/config';
     EncomendasModule,
   ],
   controllers: [AppController],
+  // providers: [AuthService, JwtStrategy, LocalStrategy],
+  // exports: [AuthService],
   providers: [],
+  exports: [],
 })
 export class AppModule { }
