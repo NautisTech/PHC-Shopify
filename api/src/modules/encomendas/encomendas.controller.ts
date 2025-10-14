@@ -1,9 +1,12 @@
-import { Controller, Get, Post, Put, Body, Param, Query, ParseIntPipe } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiParam, ApiQuery } from '@nestjs/swagger';
+import { Controller, Get, Post, Put, Body, Param, Query, ParseIntPipe, UseGuards } from '@nestjs/common';
+import { ApiTags, ApiOperation, ApiResponse, ApiParam, ApiQuery, ApiBearerAuth } from '@nestjs/swagger';
 import { EncomendasService } from './encomendas.service';
 import { CreateEncomendaDto, UpdateEncomendaDto, EncomendaResponseDto, EncomendaDetalheDto, EncomendaListagemDto, CampoPersonalizadoDto } from './encomendas.dto';
+import { AuthGuard } from '../../guards/auth.guard';
 
 @ApiTags('Encomendas')
+@ApiBearerAuth('bearer')
+@UseGuards(AuthGuard)
 @Controller('encomendas')
 export class EncomendasController {
     constructor(private readonly service: EncomendasService) { }

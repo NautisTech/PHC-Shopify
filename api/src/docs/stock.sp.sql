@@ -1,4 +1,10 @@
 -- ============================================
+-- SISTEMA DE CAMPOS PERSONALIZADOS - STOCK/ARTIGOS
+-- Suporta tanto tabela genérica quanto tabelas específicas do PHC
+-- ============================================
+
+
+-- ============================================
 -- 1. SP: LISTAR ARTIGOS COM PAGINAÇÃO
 -- ============================================
 
@@ -13,16 +19,13 @@ BEGIN
     DECLARE @Offset INT = (@Pagina - 1) * @Limite;
     DECLARE @Total INT;
     
-    -- Contar total de registos (apenas artigos com _site = 1)
     SELECT @Total = COUNT(*)
-    FROM st -- TABELA DE ARTIGOS DO PHC
-    WHERE _site = 1 -- APENAS ARTIGOS DISPONÍVEIS PARA WEB
+    FROM st
+    WHERE _site = 1
     AND (@Busca IS NULL 
-        OR design LIKE '%' + @Busca + '%'  -- título
-        OR ref LIKE '%' + @Busca + '%'     -- referência
-        OR 'pedir_david_marca' LIKE '%' + @Busca + '%'); -- marca
+        OR design LIKE '%' + @Busca + '%'
+        OR ref LIKE '%' + @Busca + '%');
     
-    -- Buscar registos paginados com campos personalizados
     SELECT 
         @Total AS total,
         @Pagina AS pagina,
@@ -31,14 +34,8 @@ BEGIN
             SELECT 
                 st.design AS titulo,
                 st.ref AS referencia,
-                'pedir_david_marca' AS marca, -- CAMPO A CONFIRMAR
-                'pedir_david_descricao' AS descricao, -- CAMPO A CONFIRMAR
                 st.epv1 AS preco,
-                'pedir_david_preco_promocional' AS precoPromocional, -- CAMPO A CONFIRMAR
-                'pedir_david_peso' AS peso, -- CAMPO A CONFIRMAR
-                'pedir_david_stock' AS stock, -- CAMPO A CONFIRMAR
                 cam.codigo_externo AS codigoExterno,
-                -- Subconsulta para campos personalizados em JSON
                 (
                     SELECT 
                         cp.codigo_campo AS codigo,
@@ -56,15 +53,16 @@ BEGIN
                         ON vp.codigo_campo = cp.codigo_campo 
                         AND vp.referencia = st.ref
                     WHERE cp.ativo = 1
+                    AND cp.tabela_destino IS NULL
                     ORDER BY cp.ordem
                     FOR JSON PATH
                 ) AS camposPersonalizados
             FROM st
             LEFT JOIN artigos_codigo_externo cam ON cam.referencia = st.ref
-            WHERE (@Busca IS NULL 
+            WHERE _site = 1
+            AND (@Busca IS NULL 
                 OR st.design LIKE '%' + @Busca + '%'
-                OR st.ref LIKE '%' + @Busca + '%'
-                OR 'pedir_david_marca' LIKE '%' + @Busca + '%')
+                OR st.ref LIKE '%' + @Busca + '%')
             ORDER BY st.ref DESC
             OFFSET @Offset ROWS
             FETCH NEXT @Limite ROWS ONLY
@@ -86,24 +84,10 @@ BEGIN
     SELECT 
         st.design AS titulo,
         st.ref AS referencia,
-        'pedir_david_marca' AS marca, -- CAMPO A CONFIRMAR
-        'pedir_david_descricao' AS descricao, -- CAMPO A CONFIRMAR
         st.epv1 AS preco,
-        'pedir_david_preco_promocional' AS precoPromocional, -- CAMPO A CONFIRMAR
-        'pedir_david_peso' AS peso, -- CAMPO A CONFIRMAR
-        'pedir_david_stock' AS stock, -- CAMPO A CONFIRMAR
         cam.codigo_externo AS codigoExterno,
-        -- Referências associadas (subconsulta JSON)
-        (
-            SELECT ra.ref_associada
-            FROM 'pedir_david_tabela_referencias_associadas' ra -- TABELA A CONFIRMAR
-            WHERE ra.ref_principal = st.ref
-            FOR JSON PATH
-        ) AS referenciasAssociadas,
-        'pedir_david_ficha_tecnica_pdf' AS fichaTecnicaPdf, -- CAMPO A CONFIRMAR
         st.usrdata AS dataCriacao,
         st.ousrdata AS dataAtualizacao,
-        -- Campos personalizados em JSON
         (
             SELECT 
                 cp.codigo_campo AS codigo,
@@ -123,9 +107,25 @@ BEGIN
                 ON vp.codigo_campo = cp.codigo_campo 
                 AND vp.referencia = st.ref
             WHERE cp.ativo = 1
+            AND cp.tabela_destino IS NULL
             ORDER BY cp.ordem
             FOR JSON PATH
-        ) AS camposPersonalizados
+        ) AS campos_personalizados_genericos,
+        (
+            SELECT 
+                cp.codigo_campo AS codigo,
+                cp.nome_campo AS nome,
+                cp.tipo_dados AS tipo,
+                cp.tabela_destino,
+                cp.campo_destino,
+                cp.grupo,
+                'ver_tabela_' + cp.tabela_destino AS valor_origem
+            FROM artigos_campos_personalizados cp
+            WHERE cp.ativo = 1
+            AND cp.tabela_destino IS NOT NULL
+            ORDER BY cp.ordem
+            FOR JSON PATH
+        ) AS campos_personalizados_externos
     FROM st
     LEFT JOIN artigos_codigo_externo cam ON cam.referencia = st.ref
     WHERE st.ref = @Referencia;
@@ -133,14 +133,14 @@ END
 GO
 
 -- ============================================
--- 3. SP: REGISTAR CÓDIGO EXTERNO DO ARTIGO
+-- 3. SP: REGISTAR CÓDIGO EXTERNO
 -- ============================================
 
 CREATE OR ALTER PROCEDURE [dbo].[sp_RegistarCodigoExternoArtigo]
     @Referencia NVARCHAR(50),
     @CodigoExterno NVARCHAR(100),
     @Observacoes NVARCHAR(MAX) = NULL,
-    @CamposPersonalizados NVARCHAR(MAX) = NULL -- JSON: [{"codigo":"campo","tipo":"text","valor":"valor"}]
+    @CamposPersonalizados NVARCHAR(MAX) = NULL
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -149,26 +149,21 @@ BEGIN
     DECLARE @DataAtual DATETIME = GETDATE();
     
     BEGIN TRY
-        -- Verificar se artigo existe
         IF NOT EXISTS (SELECT 1 FROM st WHERE ref = @Referencia)
         BEGIN
             RAISERROR('Artigo não encontrado', 16, 1);
             RETURN;
         END
         
-        -- Verificar se código externo já existe para outro artigo
         IF EXISTS (
-            SELECT 1 
-            FROM artigos_codigo_externo 
-            WHERE codigo_externo = @CodigoExterno 
-            AND referencia != @Referencia
+            SELECT 1 FROM artigos_codigo_externo 
+            WHERE codigo_externo = @CodigoExterno AND referencia != @Referencia
         )
         BEGIN
-            RAISERROR('Código externo já está associado a outro artigo', 16, 1);
+            RAISERROR('Código externo já associado a outro artigo', 16, 1);
             RETURN;
         END
         
-        -- Inserir ou atualizar código externo
         MERGE INTO artigos_codigo_externo AS target
         USING (SELECT @Referencia AS ref, @CodigoExterno AS cod) AS source
         ON target.referencia = source.ref
@@ -181,63 +176,94 @@ BEGIN
             INSERT (referencia, codigo_externo, observacoes, criado_em, atualizado_em)
             VALUES (source.ref, source.cod, @Observacoes, @DataAtual, @DataAtual);
         
-        -- Processar campos personalizados se fornecidos
         IF @CamposPersonalizados IS NOT NULL
         BEGIN
-            -- Deletar valores existentes dos campos que vão ser atualizados
-            DELETE FROM artigos_valores_personalizados
-            WHERE referencia = @Referencia
-            AND codigo_campo IN (
-                SELECT JSON_VALUE(value, '$.codigo')
-                FROM OPENJSON(@CamposPersonalizados)
-            );
+            DECLARE @CodigoCampo NVARCHAR(100);
+            DECLARE @TipoDados NVARCHAR(50);
+            DECLARE @Valor NVARCHAR(MAX);
+            DECLARE @TabelaDestino NVARCHAR(100);
+            DECLARE @CampoDestino NVARCHAR(100);
+            DECLARE @CampoChaveRelacao NVARCHAR(100);
+            DECLARE @SQL NVARCHAR(MAX);
             
-            -- Inserir novos valores
-            INSERT INTO artigos_valores_personalizados (
-                referencia,
-                codigo_campo,
-                valor_texto,
-                valor_numero,
-                valor_data,
-                valor_datetime,
-                valor_boolean,
-                valor_json,
-                criado_em,
-                atualizado_em
-            )
+            DECLARE campo_cursor CURSOR FOR
             SELECT 
-                @Referencia,
                 JSON_VALUE(value, '$.codigo'),
-                CASE WHEN JSON_VALUE(value, '$.tipo') IN ('text', 'textarea', 'email', 'phone', 'url', 'select') 
-                     THEN JSON_VALUE(value, '$.valor') END,
-                CASE WHEN JSON_VALUE(value, '$.tipo') IN ('number', 'decimal') 
-                     THEN TRY_CAST(JSON_VALUE(value, '$.valor') AS DECIMAL(18,4)) END,
-                CASE WHEN JSON_VALUE(value, '$.tipo') = 'date' 
-                     THEN TRY_CAST(JSON_VALUE(value, '$.valor') AS DATE) END,
-                CASE WHEN JSON_VALUE(value, '$.tipo') = 'datetime' 
-                     THEN TRY_CAST(JSON_VALUE(value, '$.valor') AS DATETIME2) END,
-                CASE WHEN JSON_VALUE(value, '$.tipo') = 'boolean' 
-                     THEN TRY_CAST(JSON_VALUE(value, '$.valor') AS BIT) END,
-                CASE WHEN JSON_VALUE(value, '$.tipo') = 'json' 
-                     THEN JSON_QUERY(value, '$.valor') END,
-                @DataAtual,
-                @DataAtual
+                JSON_VALUE(value, '$.tipo'),
+                JSON_VALUE(value, '$.valor')
             FROM OPENJSON(@CamposPersonalizados);
+            
+            OPEN campo_cursor;
+            FETCH NEXT FROM campo_cursor INTO @CodigoCampo, @TipoDados, @Valor;
+            
+            WHILE @@FETCH_STATUS = 0
+            BEGIN
+                SELECT 
+                    @TabelaDestino = tabela_destino,
+                    @CampoDestino = campo_destino,
+                    @CampoChaveRelacao = campo_chave_relacao
+                FROM artigos_campos_personalizados
+                WHERE codigo_campo = @CodigoCampo AND ativo = 1;
+                
+                IF @TabelaDestino IS NOT NULL AND @TabelaDestino != ''
+                BEGIN
+                    SET @SQL = '
+                        UPDATE ' + QUOTENAME(@TabelaDestino) + '
+                        SET ' + QUOTENAME(@CampoDestino) + ' = @Valor
+                        WHERE ' + QUOTENAME(ISNULL(@CampoChaveRelacao, 'ref')) + ' = @Referencia';
+                    
+                    EXEC sp_executesql @SQL, 
+                         N'@Referencia NVARCHAR(50), @Valor NVARCHAR(MAX)', 
+                         @Referencia, @Valor;
+                END
+                ELSE
+                BEGIN
+                    DELETE FROM artigos_valores_personalizados
+                    WHERE referencia = @Referencia AND codigo_campo = @CodigoCampo;
+                    
+                    INSERT INTO artigos_valores_personalizados (
+                        referencia, codigo_campo, valor_texto, valor_numero, 
+                        valor_data, valor_datetime, valor_boolean, valor_json,
+                        criado_em, atualizado_em
+                    )
+                    SELECT 
+                        @Referencia, @CodigoCampo,
+                        CASE WHEN @TipoDados IN ('text', 'textarea', 'email', 'phone', 'url', 'select') 
+                             THEN @Valor END,
+                        CASE WHEN @TipoDados IN ('number', 'decimal') 
+                             THEN TRY_CAST(@Valor AS DECIMAL(18,4)) END,
+                        CASE WHEN @TipoDados = 'date' 
+                             THEN TRY_CAST(@Valor AS DATE) END,
+                        CASE WHEN @TipoDados = 'datetime' 
+                             THEN TRY_CAST(@Valor AS DATETIME2) END,
+                        CASE WHEN @TipoDados = 'boolean' 
+                             THEN TRY_CAST(@Valor AS BIT) END,
+                        CASE WHEN @TipoDados = 'json' 
+                             THEN @Valor END,
+                        @DataAtual, @DataAtual;
+                END
+                
+                FETCH NEXT FROM campo_cursor INTO @CodigoCampo, @TipoDados, @Valor;
+            END
+            
+            CLOSE campo_cursor;
+            DEALLOCATE campo_cursor;
         END
         
         COMMIT TRANSACTION;
         
-        SELECT 
-            'SUCCESS' AS Status,
-            'Código externo registado com sucesso' AS Mensagem;
+        SELECT 'SUCCESS' AS Status, 'Código externo registado com sucesso' AS Mensagem;
             
     END TRY
     BEGIN CATCH
-        ROLLBACK TRANSACTION;
+        IF CURSOR_STATUS('global', 'campo_cursor') >= 0
+        BEGIN
+            CLOSE campo_cursor;
+            DEALLOCATE campo_cursor;
+        END
         
-        SELECT 
-            'ERROR' AS Status,
-            ERROR_MESSAGE() AS ErrorMessage;
+        ROLLBACK TRANSACTION;
+        SELECT 'ERROR' AS Status, ERROR_MESSAGE() AS ErrorMessage;
     END CATCH
 END
 GO
@@ -248,7 +274,7 @@ GO
 
 CREATE OR ALTER PROCEDURE [dbo].[sp_AtualizarCamposPersonalizadosArtigo]
     @Referencia NVARCHAR(50),
-    @CamposPersonalizados NVARCHAR(MAX) -- JSON: [{"codigo":"campo","tipo":"text","valor":"valor"}]
+    @CamposPersonalizados NVARCHAR(MAX)
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -257,66 +283,96 @@ BEGIN
     DECLARE @DataAtual DATETIME = GETDATE();
     
     BEGIN TRY
-        -- Verificar se artigo existe
         IF NOT EXISTS (SELECT 1 FROM st WHERE ref = @Referencia)
         BEGIN
             RAISERROR('Artigo não encontrado', 16, 1);
             RETURN;
         END
         
-        -- Deletar valores existentes dos campos que vão ser atualizados
-        DELETE FROM artigos_valores_personalizados
-        WHERE referencia = @Referencia
-        AND codigo_campo IN (
-            SELECT JSON_VALUE(value, '$.codigo')
-            FROM OPENJSON(@CamposPersonalizados)
-        );
+        DECLARE @CodigoCampo NVARCHAR(100);
+        DECLARE @TipoDados NVARCHAR(50);
+        DECLARE @Valor NVARCHAR(MAX);
+        DECLARE @TabelaDestino NVARCHAR(100);
+        DECLARE @CampoDestino NVARCHAR(100);
+        DECLARE @CampoChaveRelacao NVARCHAR(100);
+        DECLARE @SQL NVARCHAR(MAX);
         
-        -- Inserir novos valores
-        INSERT INTO artigos_valores_personalizados (
-            referencia,
-            codigo_campo,
-            valor_texto,
-            valor_numero,
-            valor_data,
-            valor_datetime,
-            valor_boolean,
-            valor_json,
-            criado_em,
-            atualizado_em
-        )
+        DECLARE campo_cursor CURSOR FOR
         SELECT 
-            @Referencia,
             JSON_VALUE(value, '$.codigo'),
-            CASE WHEN JSON_VALUE(value, '$.tipo') IN ('text', 'textarea', 'email', 'phone', 'url', 'select') 
-                 THEN JSON_VALUE(value, '$.valor') END,
-            CASE WHEN JSON_VALUE(value, '$.tipo') IN ('number', 'decimal') 
-                 THEN TRY_CAST(JSON_VALUE(value, '$.valor') AS DECIMAL(18,4)) END,
-            CASE WHEN JSON_VALUE(value, '$.tipo') = 'date' 
-                 THEN TRY_CAST(JSON_VALUE(value, '$.valor') AS DATE) END,
-            CASE WHEN JSON_VALUE(value, '$.tipo') = 'datetime' 
-                 THEN TRY_CAST(JSON_VALUE(value, '$.valor') AS DATETIME2) END,
-            CASE WHEN JSON_VALUE(value, '$.tipo') = 'boolean' 
-                 THEN TRY_CAST(JSON_VALUE(value, '$.valor') AS BIT) END,
-            CASE WHEN JSON_VALUE(value, '$.tipo') = 'json' 
-                 THEN JSON_QUERY(value, '$.valor') END,
-            @DataAtual,
-            @DataAtual
+            JSON_VALUE(value, '$.tipo'),
+            JSON_VALUE(value, '$.valor')
         FROM OPENJSON(@CamposPersonalizados);
         
-        COMMIT TRANSACTION;
+        OPEN campo_cursor;
+        FETCH NEXT FROM campo_cursor INTO @CodigoCampo, @TipoDados, @Valor;
         
-        SELECT 
-            'SUCCESS' AS Status,
-            'Campos personalizados atualizados com sucesso' AS Mensagem;
+        WHILE @@FETCH_STATUS = 0
+        BEGIN
+            SELECT 
+                @TabelaDestino = tabela_destino,
+                @CampoDestino = campo_destino,
+                @CampoChaveRelacao = campo_chave_relacao
+            FROM artigos_campos_personalizados
+            WHERE codigo_campo = @CodigoCampo AND ativo = 1;
+            
+            IF @TabelaDestino IS NOT NULL AND @TabelaDestino != ''
+            BEGIN
+                SET @SQL = '
+                    UPDATE ' + QUOTENAME(@TabelaDestino) + '
+                    SET ' + QUOTENAME(@CampoDestino) + ' = @Valor
+                    WHERE ' + QUOTENAME(ISNULL(@CampoChaveRelacao, 'ref')) + ' = @Referencia';
+                
+                EXEC sp_executesql @SQL, 
+                     N'@Referencia NVARCHAR(50), @Valor NVARCHAR(MAX)', 
+                     @Referencia, @Valor;
+            END
+            ELSE
+            BEGIN
+                DELETE FROM artigos_valores_personalizados
+                WHERE referencia = @Referencia AND codigo_campo = @CodigoCampo;
+                
+                INSERT INTO artigos_valores_personalizados (
+                    referencia, codigo_campo, valor_texto, valor_numero, 
+                    valor_data, valor_datetime, valor_boolean, valor_json,
+                    criado_em, atualizado_em
+                )
+                SELECT 
+                    @Referencia, @CodigoCampo,
+                    CASE WHEN @TipoDados IN ('text', 'textarea', 'email', 'phone', 'url', 'select') 
+                         THEN @Valor END,
+                    CASE WHEN @TipoDados IN ('number', 'decimal') 
+                         THEN TRY_CAST(@Valor AS DECIMAL(18,4)) END,
+                    CASE WHEN @TipoDados = 'date' 
+                         THEN TRY_CAST(@Valor AS DATE) END,
+                    CASE WHEN @TipoDados = 'datetime' 
+                         THEN TRY_CAST(@Valor AS DATETIME2) END,
+                    CASE WHEN @TipoDados = 'boolean' 
+                         THEN TRY_CAST(@Valor AS BIT) END,
+                    CASE WHEN @TipoDados = 'json' 
+                         THEN @Valor END,
+                    @DataAtual, @DataAtual;
+            END
+            
+            FETCH NEXT FROM campo_cursor INTO @CodigoCampo, @TipoDados, @Valor;
+        END
+        
+        CLOSE campo_cursor;
+        DEALLOCATE campo_cursor;
+        
+        COMMIT TRANSACTION;
+        SELECT 'SUCCESS' AS Status, 'Campos atualizados com sucesso' AS Mensagem;
             
     END TRY
     BEGIN CATCH
-        ROLLBACK TRANSACTION;
+        IF CURSOR_STATUS('global', 'campo_cursor') >= 0
+        BEGIN
+            CLOSE campo_cursor;
+            DEALLOCATE campo_cursor;
+        END
         
-        SELECT 
-            'ERROR' AS Status,
-            ERROR_MESSAGE() AS ErrorMessage;
+        ROLLBACK TRANSACTION;
+        SELECT 'ERROR' AS Status, ERROR_MESSAGE() AS ErrorMessage;
     END CATCH
 END
 GO
@@ -334,49 +390,23 @@ BEGIN
     SELECT TOP (@Limite)
         st.design AS titulo,
         st.ref AS referencia,
-        'pedir_david_marca' AS marca, -- CAMPO A CONFIRMAR
-        'pedir_david_descricao' AS descricao, -- CAMPO A CONFIRMAR
         st.epv1 AS preco,
-        'pedir_david_preco_promocional' AS precoPromocional, -- CAMPO A CONFIRMAR
-        'pedir_david_peso' AS peso, -- CAMPO A CONFIRMAR
-        'pedir_david_stock' AS stock, -- CAMPO A CONFIRMAR
-        NULL AS codigoExterno,
-        -- Campos personalizados
-        (
-            SELECT 
-                cp.codigo_campo AS codigo,
-                cp.tipo_dados AS tipo,
-                COALESCE(
-                    vp.valor_texto,
-                    CAST(vp.valor_numero AS NVARCHAR(50)),
-                    CONVERT(VARCHAR(10), vp.valor_data, 120),
-                    CONVERT(VARCHAR(19), vp.valor_datetime, 120),
-                    CASE WHEN vp.valor_boolean = 1 THEN 'true' ELSE 'false' END,
-                    vp.valor_json
-                ) AS valor
-            FROM artigos_campos_personalizados cp
-            LEFT JOIN artigos_valores_personalizados vp 
-                ON vp.codigo_campo = cp.codigo_campo 
-                AND vp.referencia = st.ref
-            WHERE cp.ativo = 1
-            ORDER BY cp.ordem
-            FOR JSON PATH
-        ) AS camposPersonalizados
+        NULL AS codigoExterno
     FROM st
     LEFT JOIN artigos_codigo_externo cam ON cam.referencia = st.ref
-    WHERE cam.codigo_externo IS NULL -- Artigos sem código externo
+    WHERE cam.codigo_externo IS NULL
+    AND st._site = 1
     ORDER BY st.ref DESC;
 END
 GO
 
 -- ============================================
--- 6. TABELAS AUXILIARES
+-- 6. CRIAR TABELAS AUXILIARES
 -- ============================================
 
--- Tabela para mapeamento de códigos externos
-IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[artigos_codigo_externo]'))
+IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'artigos_codigo_externo'))
 BEGIN
-    CREATE TABLE [dbo].[artigos_codigo_externo] (
+    CREATE TABLE artigos_codigo_externo (
         id INT IDENTITY(1,1) PRIMARY KEY,
         referencia NVARCHAR(50) UNIQUE NOT NULL,
         codigo_externo NVARCHAR(100) UNIQUE NOT NULL,
@@ -390,24 +420,26 @@ BEGIN
 END
 GO
 
--- Tabela de definição de campos personalizados
-IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[artigos_campos_personalizados]'))
+IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'artigos_campos_personalizados'))
 BEGIN
-    CREATE TABLE [dbo].[artigos_campos_personalizados] (
+    CREATE TABLE artigos_campos_personalizados (
         id INT IDENTITY(1,1) PRIMARY KEY,
         codigo_campo NVARCHAR(100) UNIQUE NOT NULL,
         nome_campo NVARCHAR(255) NOT NULL,
-        tipo_dados NVARCHAR(50) NOT NULL, -- text, number, decimal, date, datetime, boolean, select, json
+        tipo_dados NVARCHAR(50) NOT NULL,
+        tabela_destino NVARCHAR(100) NULL,
+        campo_destino NVARCHAR(100) NULL,
+        campo_chave_relacao NVARCHAR(100) NULL,
         tamanho_maximo INT NULL,
         obrigatorio BIT DEFAULT 0,
         valor_padrao NVARCHAR(MAX) NULL,
-        opcoes NVARCHAR(MAX) NULL, -- JSON array para selects
-        validacao NVARCHAR(500) NULL, -- Regex
+        opcoes NVARCHAR(MAX) NULL,
+        validacao NVARCHAR(500) NULL,
         ordem INT DEFAULT 0,
         grupo NVARCHAR(100) NULL,
         visivel BIT DEFAULT 1,
         editavel BIT DEFAULT 1,
-        configuracao_extra NVARCHAR(MAX) NULL, -- JSON
+        configuracao_extra NVARCHAR(MAX) NULL,
         ativo BIT DEFAULT 1,
         criado_em DATETIME2 DEFAULT GETDATE(),
         atualizado_em DATETIME2 DEFAULT GETDATE()
@@ -415,10 +447,9 @@ BEGIN
 END
 GO
 
--- Tabela de valores personalizados dos artigos
-IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[artigos_valores_personalizados]'))
+IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'artigos_valores_personalizados'))
 BEGIN
-    CREATE TABLE [dbo].[artigos_valores_personalizados] (
+    CREATE TABLE artigos_valores_personalizados (
         id INT IDENTITY(1,1) PRIMARY KEY,
         referencia NVARCHAR(50) NOT NULL,
         codigo_campo NVARCHAR(100) NOT NULL,
@@ -439,94 +470,31 @@ END
 GO
 
 -- ============================================
--- 7. INSERIR CAMPOS PERSONALIZADOS EXEMPLO
+-- 7. EXEMPLOS DE CAMPOS PERSONALIZADOS
 -- ============================================
 
--- Exemplos de campos personalizados para artigos
 IF NOT EXISTS (SELECT 1 FROM artigos_campos_personalizados WHERE codigo_campo = 'garantia_meses')
 BEGIN
     INSERT INTO artigos_campos_personalizados 
-        (codigo_campo, nome_campo, tipo_dados, ordem, grupo, obrigatorio, valor_padrao, configuracao_extra)
+        (codigo_campo, nome_campo, tipo_dados, ordem, grupo, valor_padrao)
     VALUES 
-        ('garantia_meses', 'Garantia (meses)', 'number', 1, 'Especificações', 0, '24', '{"minimo":0,"maximo":120}');
+        ('garantia_meses', 'Garantia (meses)', 'number', 1, 'Especificações', '24');
 END
 
 IF NOT EXISTS (SELECT 1 FROM artigos_campos_personalizados WHERE codigo_campo = 'destaque_homepage')
 BEGIN
     INSERT INTO artigos_campos_personalizados 
-        (codigo_campo, nome_campo, tipo_dados, ordem, grupo, obrigatorio, valor_padrao)
+        (codigo_campo, nome_campo, tipo_dados, ordem, grupo, valor_padrao)
     VALUES 
-        ('destaque_homepage', 'Destaque na Homepage', 'boolean', 2, 'Marketing', 0, 'false');
-END
-
-IF NOT EXISTS (SELECT 1 FROM artigos_campos_personalizados WHERE codigo_campo = 'categoria_ecommerce')
-BEGIN
-    INSERT INTO artigos_campos_personalizados 
-        (codigo_campo, nome_campo, tipo_dados, ordem, grupo, obrigatorio, opcoes)
-    VALUES 
-        ('categoria_ecommerce', 'Categoria E-commerce', 'select', 3, 'Marketing', 0, 
-         '["Eletrónica","Informática","Telefonia","Acessórios","Outros"]');
+        ('destaque_homepage', 'Destaque Homepage', 'boolean', 2, 'Marketing', 'false');
 END
 
 IF NOT EXISTS (SELECT 1 FROM artigos_campos_personalizados WHERE codigo_campo = 'sincronizado')
 BEGIN
     INSERT INTO artigos_campos_personalizados 
-        (codigo_campo, nome_campo, tipo_dados, ordem, grupo, obrigatorio, valor_padrao)
+        (codigo_campo, nome_campo, tipo_dados, ordem, grupo, valor_padrao)
     VALUES 
-        ('sincronizado', 'Sincronizado com App Externa', 'boolean', 4, 'Sistema', 0, 'false');
+        ('sincronizado', 'Sincronizado', 'boolean', 3, 'Sistema', 'false');
 END
 
-IF NOT EXISTS (SELECT 1 FROM artigos_campos_personalizados WHERE codigo_campo = 'data_sincronizacao')
-BEGIN
-    INSERT INTO artigos_campos_personalizados 
-        (codigo_campo, nome_campo, tipo_dados, ordem, grupo, obrigatorio)
-    VALUES 
-        ('data_sincronizacao', 'Data de Sincronização', 'datetime', 5, 'Sistema', 0);
-END
-
-IF NOT EXISTS (SELECT 1 FROM artigos_campos_personalizados WHERE codigo_campo = 'url_produto_externo')
-BEGIN
-    INSERT INTO artigos_campos_personalizados 
-        (codigo_campo, nome_campo, tipo_dados, ordem, grupo, obrigatorio, tamanho_maximo)
-    VALUES 
-        ('url_produto_externo', 'URL do Produto na App Externa', 'text', 6, 'Sistema', 0, 500);
-END
 GO
-
--- ============================================
--- 8. NOTAS IMPORTANTES PARA DAVID
--- ============================================
-
-/*
-CAMPOS A CONFIRMAR NA TABELA 'st' (artigos do PHC):
-
-✅ JÁ CONFIRMADOS:
-- design → Título do artigo
-- ref → Referência do artigo
-- epv1 → Preço de venda
-- usrdata → Data de criação
-- ousrdata → Data de atualização
-
-❓ A CONFIRMAR COM DAVID:
-- marca → Nome do campo? (ex: marca, fabricante, fornecedor)
-- descricao → Campo com descrição detalhada (pode ser 'obs', 'descricao', etc.)
-- precoPromocional → Preço promocional (epv2, campo específico, ou tabela de promoções?)
-- peso → Peso do produto (pode estar noutra tabela)
-- stock → Quantidade em stock (pode ser campo direto ou calculado da tabela 'stk')
-- referenciasAssociadas → Tabela de artigos relacionados/acessórios
-- fichaTecnicaPdf → Campo com caminho/URL da ficha técnica
-
-CAMPOS PERSONALIZADOS JÁ CRIADOS (exemplos):
-✅ garantia_meses (number)
-✅ destaque_homepage (boolean)
-✅ categoria_ecommerce (select)
-✅ sincronizado (boolean)
-✅ data_sincronizacao (datetime)
-✅ url_produto_externo (text)
-
-FLUXO DE SINCRONIZAÇÃO:
-1. App externa: GET /stock → busca artigos
-2. App externa cria produtos no seu sistema
-3. App externa: POST /stock/{ref}/codigo-externo → regista mapeamento
-4. Opcionalmente atualiza campos personalizados (sincronizado=true, data, url, etc.)
-*/

@@ -1,9 +1,12 @@
-import { Controller, Get, Post, Put, Body, Param, Query, ParseIntPipe } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiParam, ApiQuery } from '@nestjs/swagger';
+import { Controller, Get, Post, Put, Body, Param, Query, ParseIntPipe, UseGuards } from '@nestjs/common';
+import { ApiTags, ApiOperation, ApiResponse, ApiParam, ApiQuery, ApiBearerAuth } from '@nestjs/swagger';
 import { StockService } from './stock.service';
 import { ArtigosPaginadosDto, ArtigoListagemDto, ArtigoDetalheDto, RegistarCodigoExternoDto, SuccessResponseDto, AtualizarCamposPersonalizadosDto } from './stock.dto';
+import { AuthGuard } from '../../guards/auth.guard';
 
 @ApiTags('Stock / Artigos')
+@ApiBearerAuth('bearer')
+@UseGuards(AuthGuard)
 @Controller('stock')
 export class StockController {
     constructor(private readonly service: StockService) { }

@@ -22,15 +22,6 @@ import 'dotenv/config';
     // CONFIGURAÇÃO - Variáveis de ambiente
     ConfigModule.forRoot({ isGlobal: true }),
 
-    // AUTENTICAÇÃO - JWT
-    // PassportModule,
-    // JwtModule.register({
-    //   secret: process.env.JWT_SECRET || 'default-secret-change-in-production',
-    //   signOptions: {
-    //     expiresIn: process.env.JWT_EXPIRES_IN || '24h'
-    //   },
-    // }),
-
     // TYPEORM - Conexão com SQL Server
     TypeOrmModule.forRoot({
       type: 'mssql',

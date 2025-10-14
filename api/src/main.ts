@@ -15,7 +15,6 @@ async function bootstrap() {
     credentials: true,
   });
 
-  // GLOBAL PREFIX - Todas as rotas começam com /api
   app.setGlobalPrefix('api');
 
   // VALIDATION PIPE - Validação automática dos DTOs
@@ -35,6 +34,7 @@ async function bootstrap() {
     .setTitle('API PHC - Integração Web')
     .setDescription(`
       API REST para integração com o PHC.
+      Autenticação via Bearer Token.
       
       Clientes
       - Criar, atualizar, listar e obter clientes
@@ -55,7 +55,17 @@ async function bootstrap() {
       - Campos personalizados (método pagamento, observações, etc.)
     `)
     .setVersion('1.0')
-    .addBearerAuth()
+    .addBearerAuth(
+      {
+        type: 'http',
+        scheme: 'bearer',
+        bearerFormat: 'Token',
+        name: 'Authorization',
+        description: 'Insira o Bearer Token fornecido',
+        in: 'header',
+      },
+      'bearer', // Nome da security scheme
+    )
     .addTag('Clientes', 'Gestão de clientes')
     .addTag('Stock / Artigos', 'Gestão de artigos e stock')
     .addTag('Encomendas', 'Gestão de encomendas (BO/BI)')
@@ -83,6 +93,7 @@ async function bootstrap() {
      Servidor:      http://localhost:${port}                  
      Documentação:  http://localhost:${port}/api-docs        
      Health Check:  http://localhost:${port}/api/health       
+     Bearer Token configurado: ${process.env.API_BEARER_TOKEN ? 'Sim' : 'Não'}
 
   ════════════════════════════════════════════════════════════
   `);
