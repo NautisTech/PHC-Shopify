@@ -724,23 +724,6 @@ BEGIN
 END
 GO
 
--- Tabela para mapear códigos externos de clientes (se não existir)
-IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[clientes_codigo_externo]'))
-BEGIN
-    CREATE TABLE [dbo].[clientes_codigo_externo] (
-        id INT IDENTITY(1,1) PRIMARY KEY,
-        cliente_no INT NOT NULL,
-        codigo_externo NVARCHAR(100) UNIQUE NOT NULL,
-        observacoes NVARCHAR(MAX) NULL,
-        criado_em DATETIME2 DEFAULT GETDATE(),
-        atualizado_em DATETIME2 DEFAULT GETDATE()
-    );
-    
-    CREATE INDEX IX_cliente_no ON clientes_codigo_externo(cliente_no);
-    CREATE INDEX IX_codigo_externo ON clientes_codigo_externo(codigo_externo);
-END
-GO
-
 -- ============================================
 -- 7. INSERIR CAMPOS PERSONALIZADOS EXEMPLO
 -- ============================================

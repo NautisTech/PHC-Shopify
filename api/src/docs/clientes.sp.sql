@@ -480,21 +480,27 @@ GO
 -- ============================================
 
 -- Exemplo 1: Campo na tabela genérica
-INSERT INTO cl_campos_personalizados 
-    (codigo_campo, nome_campo, tipo_dados, ordem, grupo, obrigatorio, valor_padrao)
-VALUES 
-    ('data_aniversario', 'Data de Aniversário', 'date', 10, 'Pessoal', 0, NULL);
+-- INSERT INTO cl_campos_personalizados 
+--     (codigo_campo, nome_campo, tipo_dados, ordem, grupo, obrigatorio, valor_padrao)
+-- VALUES 
+--     ('data_aniversario', 'Data de Aniversário', 'date', 10, 'Pessoal', 0, NULL);
 
 -- Exemplo 2: Campo na tabela CL_INFO
-INSERT INTO cl_campos_personalizados 
-    (codigo_campo, nome_campo, tipo_dados, tabela_destino, campo_destino, campo_chave_relacao, ordem, grupo)
-VALUES 
-    ('nome_empresa', 'Nome da Empresa', 'text', 'cl_info', 'nome_empresa', 'cl_no', 1, 'Comercial');
+-- INSERT INTO cl_campos_personalizados 
+--     (codigo_campo, nome_campo, tipo_dados, tabela_destino, campo_destino, campo_chave_relacao, ordem, grupo)
+-- VALUES 
+--     ('nome_empresa', 'Nome da Empresa', 'text', 'cl_info', 'nome_empresa', 'cl_no', 1, 'Comercial');
 
 -- Exemplo 3: Campo na tabela CL2 (usando clstamp)
+-- INSERT INTO cl_campos_personalizados 
+--     (codigo_campo, nome_campo, tipo_dados, tabela_destino, campo_destino, campo_chave_relacao, ordem, grupo)
+-- VALUES 
+--     ('zona_comercial', 'Zona Comercial', 'text', 'cl2', 'zona', 'cl2stamp', 2, 'Comercial');
+
 INSERT INTO cl_campos_personalizados 
     (codigo_campo, nome_campo, tipo_dados, tabela_destino, campo_destino, campo_chave_relacao, ordem, grupo)
 VALUES 
-    ('zona_comercial', 'Zona Comercial', 'text', 'cl2', 'zona', 'cl2stamp', 2, 'Comercial');
+    ('_id', 'Id Externo', 'text', 'cl', '_id', 'cl_no', 1, 'Comercial');
+
 
 GO

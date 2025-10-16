@@ -35,7 +35,7 @@ BEGIN
                 st.design AS titulo,
                 st.ref AS referencia,
                 st.epv1 AS preco,
-                cam.codigo_externo AS codigoExterno,
+                st._id AS codigoExterno,
                 (
                     SELECT 
                         cp.codigo_campo AS codigo,
@@ -58,7 +58,6 @@ BEGIN
                     FOR JSON PATH
                 ) AS camposPersonalizados
             FROM st
-            LEFT JOIN artigos_codigo_externo cam ON cam.referencia = st.ref
             WHERE _site = 1
             AND (@Busca IS NULL 
                 OR st.design LIKE '%' + @Busca + '%'
@@ -85,7 +84,7 @@ BEGIN
         st.design AS titulo,
         st.ref AS referencia,
         st.epv1 AS preco,
-        cam.codigo_externo AS codigoExterno,
+        st._id AS codigoExterno,
         st.usrdata AS dataCriacao,
         st.ousrdata AS dataAtualizacao,
         (
@@ -127,7 +126,6 @@ BEGIN
             FOR JSON PATH
         ) AS campos_personalizados_externos
     FROM st
-    LEFT JOIN artigos_codigo_externo cam ON cam.referencia = st.ref
     WHERE st.ref = @Referencia;
 END
 GO
@@ -156,25 +154,24 @@ BEGIN
         END
         
         IF EXISTS (
-            SELECT 1 FROM artigos_codigo_externo 
-            WHERE codigo_externo = @CodigoExterno AND referencia != @Referencia
+            SELECT 1 FROM st
+            WHERE _id = @CodigoExterno AND ref != @Referencia 
         )
         BEGIN
             RAISERROR('Código externo já associado a outro artigo', 16, 1);
             RETURN;
         END
         
-        MERGE INTO artigos_codigo_externo AS target
+        MERGE INTO st AS target
         USING (SELECT @Referencia AS ref, @CodigoExterno AS cod) AS source
         ON target.referencia = source.ref
         WHEN MATCHED THEN
             UPDATE SET 
-                codigo_externo = source.cod,
-                observacoes = @Observacoes,
-                atualizado_em = @DataAtual
+                _id = source.cod,
+                ousrdata = @DataAtual
         WHEN NOT MATCHED THEN
-            INSERT (referencia, codigo_externo, observacoes, criado_em, atualizado_em)
-            VALUES (source.ref, source.cod, @Observacoes, @DataAtual, @DataAtual);
+            INSERT (referencia, _id, usrdata, ousrdata)
+            VALUES (source.ref, source.cod, @DataAtual, @DataAtual);
         
         IF @CamposPersonalizados IS NOT NULL
         BEGIN
@@ -393,8 +390,7 @@ BEGIN
         st.epv1 AS preco,
         NULL AS codigoExterno
     FROM st
-    LEFT JOIN artigos_codigo_externo cam ON cam.referencia = st.ref
-    WHERE cam.codigo_externo IS NULL
+    WHERE st._id IS NULL
     AND st._site = 1
     ORDER BY st.ref DESC;
 END
@@ -403,22 +399,6 @@ GO
 -- ============================================
 -- 6. CRIAR TABELAS AUXILIARES
 -- ============================================
-
-IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'artigos_codigo_externo'))
-BEGIN
-    CREATE TABLE artigos_codigo_externo (
-        id INT IDENTITY(1,1) PRIMARY KEY,
-        referencia NVARCHAR(50) UNIQUE NOT NULL,
-        codigo_externo NVARCHAR(100) UNIQUE NOT NULL,
-        observacoes NVARCHAR(MAX) NULL,
-        criado_em DATETIME2 DEFAULT GETDATE(),
-        atualizado_em DATETIME2 DEFAULT GETDATE()
-    );
-    
-    CREATE INDEX IX_referencia ON artigos_codigo_externo(referencia);
-    CREATE INDEX IX_codigo_externo ON artigos_codigo_externo(codigo_externo);
-END
-GO
 
 IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'artigos_campos_personalizados'))
 BEGIN

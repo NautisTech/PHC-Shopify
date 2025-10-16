@@ -251,8 +251,7 @@ export class EncomendasService {
             `SELECT cl.no, cl.Nome, cl.ncont, cl.morada, cl.local, cl.codpost, 
                     cl.telefone, cl.email, cl.tlmvl
              FROM cl
-             INNER JOIN clientes_codigo_externo ce ON ce.cliente_no = cl.no
-             WHERE ce.codigo_externo = @0`,
+             WHERE cl._id = @0`,
             [clienteId]
         );
 
