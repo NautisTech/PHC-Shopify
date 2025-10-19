@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsString, IsOptional, IsNumber, IsArray, ValidateNested, IsEnum } from 'class-validator';
+import { IsString, IsOptional, IsArray, ValidateNested, IsEnum } from 'class-validator';
 import { Type } from 'class-transformer';
 
 // Campo Personalizado
@@ -26,110 +26,11 @@ export class CampoPersonalizadoDto {
     valor: any;
 }
 
-// Response DTO para listagem de artigos
-export class ArtigoListagemDto {
-    @ApiProperty({
-        description: 'Título do artigo',
-        example: 'Smartphone XYZ Pro',
-    })
-    titulo: string;
-
-    @ApiProperty({
-        description: 'Referência do artigo no PHC',
-        example: 'ART-001',
-    })
-    referencia: string;
-
-    @ApiProperty({
-        description: 'Marca do produto',
-        example: 'Samsung',
-    })
-    marca: string;
-
-    @ApiProperty({
-        description: 'Descrição do artigo',
-        example: 'Smartphone com 128GB de armazenamento',
-    })
-    descricao: string;
-
-    @ApiProperty({
-        description: 'Preço de venda (sem promoção)',
-        example: 599.99,
-    })
-    preco: number;
-
-    @ApiPropertyOptional({
-        description: 'Preço promocional (se existir)',
-        example: 499.99,
-        nullable: true,
-    })
-    precoPromocional?: number;
-
-    @ApiPropertyOptional({
-        description: 'Peso do produto em kg',
-        example: 0.185,
-        nullable: true,
-    })
-    peso?: number;
-
-    @ApiProperty({
-        description: 'Quantidade em stock',
-        example: 150,
-    })
-    stock: number;
-
-    @ApiPropertyOptional({
-        description: 'Código do artigo na aplicação externa (se já foi registado)',
-        example: 'EXT-12345',
-        nullable: true,
-    })
-    codigoExterno?: string;
-
-    @ApiPropertyOptional({
-        description: 'Campos personalizados do artigo',
-        type: [CampoPersonalizadoDto],
-        example: [
-            { codigo: 'garantia_meses', tipo: 'number', valor: 24 },
-            { codigo: 'cor_disponivel', tipo: 'select', valor: 'Preto' }
-        ]
-    })
-    camposPersonalizados?: CampoPersonalizadoDto[];
-}
-
-// Response DTO para detalhes completos do artigo
-export class ArtigoDetalheDto extends ArtigoListagemDto {
-    @ApiPropertyOptional({
-        description: 'Referências de artigos associados',
-        example: ['ART-002', 'ART-003'],
-        type: [String],
-    })
-    referenciasAssociadas?: string[];
-
-    @ApiPropertyOptional({
-        description: 'URL ou caminho da ficha técnica em PDF',
-        example: 'https://exemplo.com/fichas/ART-001.pdf',
-        nullable: true,
-    })
-    fichaTecnicaPdf?: string;
-
-    @ApiProperty({
-        description: 'Data de criação do artigo',
-        example: '2025-01-15T10:30:00',
-    })
-    dataCriacao: string;
-
-    @ApiProperty({
-        description: 'Data da última atualização',
-        example: '2025-10-14T14:20:00',
-    })
-    dataAtualizacao: string;
-}
-
 // DTO para registar código externo
 export class RegistarCodigoExternoDto {
     @ApiProperty({
         description: 'Código/ID do artigo na aplicação externa',
-        example: 'EXT-12345',
+        example: 'shopify_12345',
         minLength: 1,
         maxLength: 100,
     })
@@ -138,17 +39,17 @@ export class RegistarCodigoExternoDto {
 
     @ApiPropertyOptional({
         description: 'Observações sobre o mapeamento',
-        example: 'Sincronizado com e-commerce',
+        example: 'Sincronizado com e-commerce em 2025-10-19',
     })
     @IsOptional()
     @IsString()
     observacoes?: string;
 
     @ApiPropertyOptional({
-        description: 'Campos personalizados a actualizar durante o registo',
+        description: 'Campos personalizados a atualizar durante o registo',
         type: [CampoPersonalizadoDto],
         example: [
-            { codigo: 'data_sincronizacao', tipo: 'datetime', valor: '2025-10-14T15:30:00' },
+            { codigo: 'data_sincronizacao', tipo: 'datetime', valor: '2025-10-19T15:30:00' },
             { codigo: 'sincronizado', tipo: 'boolean', valor: true }
         ]
     })
@@ -176,7 +77,7 @@ export class AtualizarCamposPersonalizadosDto {
     camposPersonalizados: CampoPersonalizadoDto[];
 }
 
-// Response padrão de sucesso
+// Response DTOs
 export class SuccessResponseDto {
     @ApiProperty({ example: 'SUCCESS' })
     status: string;
@@ -185,7 +86,88 @@ export class SuccessResponseDto {
     mensagem: string;
 }
 
-// Response de listagem paginada
+export class CampoPersonalizadoResponseDto {
+    @ApiProperty({ example: 'garantia_meses' })
+    codigo: string;
+
+    @ApiPropertyOptional({ example: 'Garantia (meses)' })
+    nome?: string;
+
+    @ApiProperty({ example: 'number' })
+    tipo: string;
+
+    @ApiPropertyOptional({ example: 'Especificações' })
+    grupo?: string;
+
+    @ApiPropertyOptional({ example: 'st' })
+    tabela_destino?: string;
+
+    @ApiProperty({ example: 24 })
+    valor: any;
+}
+
+export class ArtigoListagemDto {
+    @ApiProperty({ example: 'Smartphone XYZ Pro' })
+    titulo: string;
+
+    @ApiProperty({ example: 'ART-001' })
+    referencia: string;
+
+    @ApiPropertyOptional({ example: 'Samsung' })
+    marca?: string;
+
+    @ApiPropertyOptional({ example: 'Smartphone com 128GB de armazenamento' })
+    descricao?: string;
+
+    @ApiProperty({ example: 599.99 })
+    preco: number;
+
+    @ApiPropertyOptional({ example: 499.99 })
+    precoPromocional?: number;
+
+    @ApiPropertyOptional({ example: 0.185 })
+    peso?: number;
+
+    @ApiProperty({ example: 150 })
+    stock: number;
+
+    @ApiPropertyOptional({ example: 'https://example.com/fichas/produto-xyz.pdf' })
+    fichaTecnica?: string;
+
+    @ApiPropertyOptional({ example: '141204' })
+    familia?: string;
+
+    @ApiPropertyOptional({ example: 'QUIMICOS - COZINHAS' })
+    familiaNome?: string;
+
+    @ApiPropertyOptional({ example: 23 })
+    taxaIVA?: number;
+
+    @ApiPropertyOptional({ example: 'UN' })
+    unidade?: string;
+
+    @ApiPropertyOptional({ example: '\\\\192.168.1.9\\LOGOS\\FOTOS\\2PA10471.jpg' })
+    caminhoImagem?: string;
+
+    @ApiPropertyOptional({ example: 'A2BRIOS - PRODUÇÃO E COMÉRCIO' })
+    fornecedor?: string;
+
+    @ApiPropertyOptional({ example: '1332' })
+    codigoFornecedor?: string;
+
+    @ApiPropertyOptional({ example: '2022-03-14T00:00:00.000Z' })
+    dataCriacao?: Date;
+
+    @ApiPropertyOptional({ example: '2022-03-15T11:42:51.000Z' })
+    dataAtualizacao?: Date;
+
+    @ApiPropertyOptional({ example: 'shopify_12345' })
+    codigoExterno?: string;
+
+    @ApiPropertyOptional({ type: [CampoPersonalizadoResponseDto] })
+    camposPersonalizados?: CampoPersonalizadoResponseDto[];
+}
+
 export class ArtigosPaginadosDto {
     @ApiProperty({ example: 250 })
     total: number;
@@ -196,9 +178,53 @@ export class ArtigosPaginadosDto {
     @ApiProperty({ example: 50 })
     limite: number;
 
-    @ApiProperty({
-        type: [ArtigoListagemDto],
-        description: 'Lista de artigos',
-    })
+    @ApiProperty({ type: [ArtigoListagemDto] })
     dados: ArtigoListagemDto[];
+}
+
+export class ConfiguracaoCampoDto {
+    @ApiProperty({ example: 'garantia_meses' })
+    codigo_campo: string;
+
+    @ApiProperty({ example: 'Garantia (meses)' })
+    nome_campo: string;
+
+    @ApiProperty({ example: 'number' })
+    tipo_dados: string;
+
+    @ApiPropertyOptional({ example: 'st' })
+    tabela_destino?: string;
+
+    @ApiPropertyOptional({ example: 'garantia' })
+    campo_destino?: string;
+
+    @ApiPropertyOptional({ example: 'ref' })
+    campo_chave_relacao?: string;
+
+    @ApiPropertyOptional({ example: null })
+    tamanho_maximo?: number;
+
+    @ApiProperty({ example: false })
+    obrigatorio: boolean;
+
+    @ApiPropertyOptional({ example: '24' })
+    valor_padrao?: string;
+
+    @ApiPropertyOptional({ example: null })
+    opcoes?: string;
+
+    @ApiPropertyOptional({ example: null })
+    validacao?: string;
+
+    @ApiProperty({ example: 1 })
+    ordem: number;
+
+    @ApiPropertyOptional({ example: 'Especificações' })
+    grupo?: string;
+
+    @ApiProperty({ example: true })
+    visivel: boolean;
+
+    @ApiProperty({ example: true })
+    editavel: boolean;
 }

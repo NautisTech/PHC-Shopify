@@ -42,7 +42,7 @@ async function bootstrap() {
       - Suporte a Consumidor Final (sem NIF)
       
       Stock / Artigos
-      - Listar artigos disponíveis para web (_web = 1)
+      - Listar artigos disponíveis para web (_site = 1)
       - Obter detalhes de artigos
       - Registar códigos externos (mapeamento com apps externas)
       - Campos personalizados (garantia, categorias, etc.)

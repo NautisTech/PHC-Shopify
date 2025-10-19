@@ -1,7 +1,7 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
-import { ArtigosPaginadosDto, ArtigoListagemDto, ArtigoDetalheDto, RegistarCodigoExternoDto, SuccessResponseDto, AtualizarCamposPersonalizadosDto } from './stock.dto';
+import { RegistarCodigoExternoDto, AtualizarCamposPersonalizadosDto } from './stock.dto';
 
 @Injectable()
 export class StockService {
@@ -17,45 +17,101 @@ export class StockService {
         pagina: number = 1,
         limite: number = 50,
         busca?: string
-    ): Promise<ArtigosPaginadosDto> {
-        const result = await this.dataSource.query(
-            `EXEC [dbo].[sp_ListarArtigos]
-                @Pagina = @0,
-                @Limite = @1,
-                @Busca = @2`,
-            [pagina, limite, busca || null]
-        );
+    ): Promise<any> {
+        const offset = (pagina - 1) * limite;
 
-        if (!result || result.length === 0) {
-            return {
-                total: 0,
-                pagina,
-                limite,
-                dados: []
-            };
+        // Construir WHERE clause
+        let whereClause = '_site = 1';
+        const params: any[] = [];
+        let paramIndex = 0;
+
+        if (busca) {
+            whereClause += ` AND (
+                design LIKE @${paramIndex} OR 
+                ref LIKE @${paramIndex}
+            )`;
+            params.push(`%${busca}%`);
+            paramIndex++;
         }
 
-        const response = result[0];
+        // Contar total
+        const totalResult = await this.dataSource.query(
+            `SELECT COUNT(*) as total FROM st WHERE ${whereClause}`,
+            params
+        );
+        const total = totalResult[0].total;
+
+        // Buscar dados paginados
+        params.push(offset);
+        params.push(limite);
+
+        const dados = await this.dataSource.query(`
+            SELECT 
+                st.design AS titulo,
+                st.ref AS referencia,
+                st.u_marcafl AS marca,
+                st.u_desctec AS descricao,
+                st.epv1 AS preco,
+                st.epv5 AS precoPromocional,
+                st.peso AS peso,
+                st.stock AS stock,
+                st.url AS fichaTecnica,
+                st._id AS codigoExterno,
+                st.familia AS familia,
+                st.faminome AS familiaNome,
+                st.tabiva AS taxaIVA,
+                st.unidade AS unidade,
+                st.imagem AS caminhoImagem,
+                st.fornecedor AS fornecedor,
+                st.fornec AS codigoFornecedor
+            FROM st
+            WHERE ${whereClause}
+            ORDER BY st.ref DESC
+            OFFSET @${paramIndex} ROWS
+            FETCH NEXT @${paramIndex + 1} ROWS ONLY
+        `, params);
+
+        // Buscar campos personalizados para cada artigo
+        for (const artigo of dados) {
+            artigo.camposPersonalizados = await this.buscarCamposPersonalizados(artigo.referencia);
+        }
 
         return {
-            total: response.total,
-            pagina: response.pagina,
-            limite: response.limite,
-            dados: JSON.parse(response.dados || '[]')
+            total,
+            pagina,
+            limite,
+            dados
         };
     }
 
     /**
      * Obter artigo por referência
-     * - Busca dados de ST
-     * - Busca campos da tabela genérica
-     * - Busca campos das tabelas externas (st, outras tabelas PHC)
      */
-    async obterPorReferencia(referencia: string): Promise<ArtigoDetalheDto> {
-        const result = await this.dataSource.query(
-            `EXEC [dbo].[sp_ObterArtigoPorReferencia] @Referencia = @0`,
-            [referencia]
-        );
+    async obterPorReferencia(referencia: string): Promise<any> {
+        const result = await this.dataSource.query(`
+            SELECT 
+                st.design AS titulo,
+                st.ref AS referencia,
+                st.u_marcafl AS marca,
+                st.u_desctec AS descricao,
+                st.epv1 AS preco,
+                st.epv5 AS precoPromocional,
+                st.peso AS peso,
+                st.stock AS stock,
+                st.url AS fichaTecnica,
+                st._id AS codigoExterno,
+                st.familia AS familia,
+                st.faminome AS familiaNome,
+                st.tabiva AS taxaIVA,
+                st.unidade AS unidade,
+                st.imagem AS caminhoImagem,
+                st.fornecedor AS fornecedor,
+                st.fornec AS codigoFornecedor,
+                st.usrdata AS dataCriacao,
+                st.ousrdata AS dataAtualizacao
+            FROM st
+            WHERE st.ref = @0
+        `, [referencia]);
 
         if (!result || result.length === 0) {
             throw new NotFoundException(`Artigo com referência '${referencia}' não encontrado`);
@@ -63,92 +119,135 @@ export class StockService {
 
         const artigo = result[0];
 
-        // Processar campos externos (buscar valores das tabelas específicas)
-        if (artigo.campos_personalizados_externos) {
-            const camposExternos = JSON.parse(artigo.campos_personalizados_externos);
+        // Buscar campos personalizados genéricos
+        const camposGenericos = await this.dataSource.query(`
+            SELECT 
+                cp.codigo_campo AS codigo,
+                cp.nome_campo AS nome,
+                cp.tipo_dados AS tipo,
+                cp.grupo,
+                COALESCE(
+                    vp.valor_texto,
+                    CAST(vp.valor_numero AS NVARCHAR(50)),
+                    CONVERT(VARCHAR(10), vp.valor_data, 120),
+                    CONVERT(VARCHAR(19), vp.valor_datetime, 120),
+                    CASE WHEN vp.valor_boolean = 1 THEN 'true' ELSE 'false' END,
+                    vp.valor_json
+                ) AS valor
+            FROM artigos_campos_personalizados cp
+            LEFT JOIN artigos_valores_personalizados vp 
+                ON vp.codigo_campo = cp.codigo_campo AND vp.referencia = @0
+            WHERE cp.ativo = 1 AND cp.tabela_destino IS NULL
+            ORDER BY cp.ordem
+        `, [referencia]);
 
-            // Para cada campo externo, buscar o valor real da tabela
-            for (const campo of camposExternos) {
-                if (campo.tabela_destino && campo.campo_destino) {
-                    try {
-                        const valorExterno = await this.buscarValorCampoExterno(
-                            referencia,
-                            campo.tabela_destino,
-                            campo.campo_destino,
-                            campo.codigo
-                        );
-                        campo.valor = valorExterno;
-                        delete campo.valor_origem;
-                    } catch (error) {
-                        console.error(`Erro ao buscar campo ${campo.codigo}:`, error);
-                        campo.valor = null;
-                    }
-                }
+        // Buscar configuração de campos externos
+        const camposExternosConfig = await this.dataSource.query(`
+            SELECT 
+                codigo_campo, nome_campo, tipo_dados, grupo,
+                tabela_destino, campo_destino, campo_chave_relacao
+            FROM artigos_campos_personalizados
+            WHERE ativo = 1 AND tabela_destino IS NOT NULL
+            ORDER BY ordem
+        `);
+
+        // Buscar valores dos campos externos
+        const camposExternos: any[] = [];
+        for (const config of camposExternosConfig) {
+            try {
+                const valor = await this.buscarValorCampoExterno(
+                    referencia,
+                    config.tabela_destino,
+                    config.campo_destino,
+                    config.campo_chave_relacao
+                );
+
+                camposExternos.push({
+                    codigo: config.codigo_campo,
+                    nome: config.nome_campo,
+                    tipo: config.tipo_dados,
+                    grupo: config.grupo,
+                    tabela_destino: config.tabela_destino,
+                    valor: valor
+                });
+            } catch (error) {
+                console.error(`Erro ao buscar campo ${config.codigo_campo}:`, error);
             }
-
-            artigo.campos_personalizados_externos = JSON.stringify(camposExternos);
         }
 
-        // Combinar campos genéricos + externos
-        const camposGenericos = artigo.campos_personalizados_genericos
-            ? JSON.parse(artigo.campos_personalizados_genericos)
-            : [];
-        const camposExternos = artigo.campos_personalizados_externos
-            ? JSON.parse(artigo.campos_personalizados_externos)
-            : [];
-
         artigo.campos_personalizados = [...camposGenericos, ...camposExternos];
-
-        // Limpar propriedades temporárias
-        delete artigo.campos_personalizados_genericos;
-        delete artigo.campos_personalizados_externos;
 
         return artigo;
     }
 
     /**
-     * Buscar valor de um campo numa tabela externa
-     * Exemplo: buscar st.peso onde st.ref = 'ART-001'
+     * Buscar campos personalizados de um artigo (para listagem)
+     */
+    private async buscarCamposPersonalizados(referencia: string): Promise<any[]> {
+        const campos = await this.dataSource.query(`
+            SELECT 
+                cp.codigo_campo AS codigo,
+                cp.tipo_dados AS tipo,
+                COALESCE(
+                    vp.valor_texto,
+                    CAST(vp.valor_numero AS NVARCHAR(50)),
+                    CONVERT(VARCHAR(10), vp.valor_data, 120),
+                    CONVERT(VARCHAR(19), vp.valor_datetime, 120),
+                    CASE WHEN vp.valor_boolean = 1 THEN 'true' ELSE 'false' END,
+                    vp.valor_json
+                ) AS valor
+            FROM artigos_campos_personalizados cp
+            LEFT JOIN artigos_valores_personalizados vp 
+                ON vp.codigo_campo = cp.codigo_campo AND vp.referencia = @0
+            WHERE cp.ativo = 1 AND cp.visivel = 1 AND cp.tabela_destino IS NULL
+            ORDER BY cp.ordem
+        `, [referencia]);
+
+        return campos || [];
+    }
+
+    /**
+     * Buscar valor de campo em tabela externa
      */
     private async buscarValorCampoExterno(
         referencia: string,
         tabelaDestino: string,
         campoDestino: string,
-        codigoCampo: string
+        campoChave: string
     ): Promise<any> {
-        // Obter qual FK usar (ref, stampo, etc.)
-        const config = await this.dataSource.query(
-            `SELECT campo_chave_relacao FROM artigos_campos_personalizados 
-             WHERE codigo_campo = @0`,
-            [codigoCampo]
+        const result = await this.dataSource.query(
+            `SELECT ${campoDestino} AS valor 
+             FROM ${tabelaDestino} 
+             WHERE ${campoChave || 'ref'} = @0`,
+            [referencia]
         );
 
-        const campoChave = config[0]?.campo_chave_relacao || 'ref';
-
-        // Query dinâmica para buscar o valor
-        const sql = `
-            SELECT ${campoDestino} AS valor
-            FROM ${tabelaDestino}
-            WHERE ${campoChave} = @0
-        `;
-
-        const result = await this.dataSource.query(sql, [referencia]);
         return result[0]?.valor || null;
     }
 
     /**
-     * Registar código da aplicação externa para um artigo
-     * - Valida se campos personalizados existem
-     * - SP decide onde guardar cada campo
+     * Registar código externo para um artigo
      */
     async registarCodigoExterno(
         referencia: string,
         dto: RegistarCodigoExternoDto
-    ): Promise<SuccessResponseDto> {
+    ): Promise<any> {
         // Verificar se artigo existe
         const artigo = await this.obterPorReferencia(referencia);
         if (!artigo) {
             throw new NotFoundException(`Artigo com referência '${referencia}' não encontrado`);
+        }
+
+        // Verificar se código externo já está em uso
+        const codigoEmUso = await this.dataSource.query(
+            `SELECT ref FROM st WHERE _id = @0 AND ref != @1`,
+            [dto.codigoExterno, referencia]
+        );
+
+        if (codigoEmUso && codigoEmUso.length > 0) {
+            throw new BadRequestException(
+                `Código externo '${dto.codigoExterno}' já está associado ao artigo '${codigoEmUso[0].ref}'`
+            );
         }
 
         // VALIDAR campos personalizados se existirem
@@ -156,27 +255,43 @@ export class StockService {
             await this.validarCamposPersonalizados(dto.camposPersonalizados);
         }
 
-        const camposJson = dto.camposPersonalizados
-            ? JSON.stringify(dto.camposPersonalizados)
-            : null;
+        const queryRunner = this.dataSource.createQueryRunner();
+        await queryRunner.connect();
+        await queryRunner.startTransaction();
 
-        const result = await this.dataSource.query(
-            `EXEC [dbo].[sp_RegistarCodigoExternoArtigo]
-                @Referencia = @0,
-                @CodigoExterno = @1,
-                @Observacoes = @2,
-                @CamposPersonalizados = @3`,
-            [referencia, dto.codigoExterno, dto.observacoes || null, camposJson]
-        );
+        try {
+            const dataAtual = new Date();
 
-        if (result[0]?.Status === 'ERROR') {
-            throw new BadRequestException(result[0].ErrorMessage);
+            // Atualizar código externo
+            await queryRunner.query(
+                `UPDATE st SET _id = @0, ousrdata = @1 WHERE ref = @2`,
+                [dto.codigoExterno, dataAtual, referencia]
+            );
+
+            // Processar campos personalizados se fornecidos
+            if (dto.camposPersonalizados && dto.camposPersonalizados.length > 0) {
+                await this.processarCamposPersonalizados(
+                    queryRunner,
+                    referencia,
+                    dto.camposPersonalizados
+                );
+            }
+
+            await queryRunner.commitTransaction();
+
+            return {
+                status: 'SUCCESS',
+                mensagem: `Código externo '${dto.codigoExterno}' registado para o artigo '${referencia}'`
+            };
+
+        } catch (error) {
+            await queryRunner.rollbackTransaction();
+            throw new BadRequestException(
+                `Erro ao registar código externo: ${error.message}`
+            );
+        } finally {
+            await queryRunner.release();
         }
-
-        return {
-            status: 'SUCCESS',
-            mensagem: `Código externo '${dto.codigoExterno}' registado para o artigo '${referencia}'`
-        };
     }
 
     /**
@@ -185,7 +300,7 @@ export class StockService {
     async atualizarCamposPersonalizados(
         referencia: string,
         dto: AtualizarCamposPersonalizadosDto
-    ): Promise<SuccessResponseDto> {
+    ): Promise<any> {
         // Verificar se artigo existe
         const artigo = await this.obterPorReferencia(referencia);
         if (!artigo) {
@@ -195,48 +310,165 @@ export class StockService {
         // VALIDAR campos personalizados
         await this.validarCamposPersonalizados(dto.camposPersonalizados);
 
-        const camposJson = JSON.stringify(dto.camposPersonalizados);
+        const queryRunner = this.dataSource.createQueryRunner();
+        await queryRunner.connect();
+        await queryRunner.startTransaction();
 
-        const result = await this.dataSource.query(
-            `EXEC [dbo].[sp_AtualizarCamposPersonalizadosArtigo]
-                @Referencia = @0,
-                @CamposPersonalizados = @1`,
-            [referencia, camposJson]
-        );
+        try {
+            await this.processarCamposPersonalizados(
+                queryRunner,
+                referencia,
+                dto.camposPersonalizados
+            );
 
-        if (result[0]?.Status === 'ERROR') {
-            throw new BadRequestException(result[0].ErrorMessage);
+            await queryRunner.commitTransaction();
+
+            return {
+                status: 'SUCCESS',
+                mensagem: `Campos personalizados atualizados para o artigo '${referencia}'`
+            };
+
+        } catch (error) {
+            await queryRunner.rollbackTransaction();
+            throw new BadRequestException(
+                `Erro ao atualizar campos personalizados: ${error.message}`
+            );
+        } finally {
+            await queryRunner.release();
         }
+    }
 
-        return {
-            status: 'SUCCESS',
-            mensagem: `Campos personalizados atualizados para o artigo '${referencia}'`
-        };
+    /**
+     * Processar campos personalizados
+     */
+    private async processarCamposPersonalizados(
+        queryRunner: any,
+        referencia: string,
+        campos: any[]
+    ): Promise<void> {
+        const dataAtual = new Date();
+
+        for (const campo of campos) {
+            // Buscar configuração do campo
+            const config = await queryRunner.query(
+                `SELECT tabela_destino, campo_destino, campo_chave_relacao, tipo_dados
+                 FROM artigos_campos_personalizados
+                 WHERE codigo_campo = @0 AND ativo = 1`,
+                [campo.codigo]
+            );
+
+            if (!config || config.length === 0) {
+                continue; // Campo não configurado, pular
+            }
+
+            const { tabela_destino, campo_destino, campo_chave_relacao, tipo_dados } = config[0];
+
+            // ========================================
+            // OPÇÃO 1: Campo vai para tabela específica
+            // ========================================
+            if (tabela_destino && campo_destino) {
+                const valorChave = referencia;
+
+                // Verificar se registro existe
+                const existe = await queryRunner.query(
+                    `SELECT COUNT(*) as count FROM ${tabela_destino} 
+                     WHERE ${campo_chave_relacao || 'ref'} = @0`,
+                    [valorChave]
+                );
+
+                if (existe[0].count > 0) {
+                    // UPDATE
+                    await queryRunner.query(
+                        `UPDATE ${tabela_destino} 
+                         SET ${campo_destino} = @0 
+                         WHERE ${campo_chave_relacao || 'ref'} = @1`,
+                        [campo.valor, valorChave]
+                    );
+                } else {
+                    // INSERT
+                    await queryRunner.query(
+                        `INSERT INTO ${tabela_destino} (${campo_chave_relacao || 'ref'}, ${campo_destino})
+                         VALUES (@0, @1)`,
+                        [valorChave, campo.valor]
+                    );
+                }
+            }
+            // ========================================
+            // OPÇÃO 2: Campo vai para tabela genérica
+            // ========================================
+            else {
+                // Remover valor existente
+                await queryRunner.query(
+                    `DELETE FROM artigos_valores_personalizados
+                     WHERE referencia = @0 AND codigo_campo = @1`,
+                    [referencia, campo.codigo]
+                );
+
+                // Inserir novo valor
+                await queryRunner.query(`
+                    INSERT INTO artigos_valores_personalizados (
+                        referencia, codigo_campo,
+                        valor_texto, valor_numero, valor_data, 
+                        valor_datetime, valor_boolean, valor_json,
+                        criado_em, atualizado_em
+                    )
+                    VALUES (@0, @1, @2, @3, @4, @5, @6, @7, @8, @9)
+                `, [
+                    referencia,
+                    campo.codigo,
+                    ['text', 'textarea', 'email', 'phone', 'url', 'select'].includes(tipo_dados) ? campo.valor : null,
+                    ['number', 'decimal'].includes(tipo_dados) ? campo.valor : null,
+                    tipo_dados === 'date' ? campo.valor : null,
+                    tipo_dados === 'datetime' ? campo.valor : null,
+                    tipo_dados === 'boolean' ? campo.valor : null,
+                    tipo_dados === 'json' ? JSON.stringify(campo.valor) : null,
+                    dataAtual,
+                    dataAtual
+                ]);
+            }
+        }
     }
 
     /**
      * Listar artigos sem código externo (ainda não sincronizados)
      */
-    async listarNaoSincronizados(limite: number = 100): Promise<ArtigoListagemDto[]> {
-        const result = await this.dataSource.query(
-            `EXEC [dbo].[sp_ListarArtigosNaoSincronizados] @Limite = @0`,
-            [limite]
-        );
+    async listarNaoSincronizados(limite: number = 100): Promise<any[]> {
+        const result = await this.dataSource.query(`
+            SELECT TOP (@0)
+                st.design AS titulo,
+                st.ref AS referencia,
+                st.u_marcafl AS marca,
+                st.u_desctec AS descricao,
+                st.epv1 AS preco,
+                st.epv5 AS precoPromocional,
+                st.peso AS peso,
+                st.stock AS stock,
+                st.url AS fichaTecnica,
+                NULL AS codigoExterno,
+                st.familia AS familia,
+                st.faminome AS familiaNome,
+                st.tabiva AS taxaIVA,
+                st.unidade AS unidade,
+                st.imagem AS caminhoImagem,
+                st.fornecedor AS fornecedor,
+                st.fornec AS codigoFornecedor
+            FROM st
+            WHERE st._id = 0 AND st._site = 1
+            ORDER BY st.ref DESC
+        `, [limite]);
 
         return result || [];
     }
 
     /**
-     * VALIDAR se os campos enviados existem na configuração
+     * VALIDAR campos personalizados
      */
     private async validarCamposPersonalizados(campos: any[]): Promise<void> {
-        // Buscar TODAS as configurações de campos ativos
         const definicoesCampos = await this.dataSource.query(
             `SELECT * FROM artigos_campos_personalizados WHERE ativo = 1`
         );
 
         for (const campo of campos) {
-            // Verificar se o campo existe na configuração
             const definicao = definicoesCampos.find(
                 (d: any) => d.codigo_campo === campo.codigo
             );
@@ -247,7 +479,6 @@ export class StockService {
                 );
             }
 
-            // Validar se campo é obrigatório
             if (definicao.obrigatorio &&
                 (campo.valor === null || campo.valor === undefined || campo.valor === '')) {
                 throw new BadRequestException(
@@ -255,7 +486,6 @@ export class StockService {
                 );
             }
 
-            // Validar regex se existir
             if (definicao.validacao && campo.valor) {
                 const regex = new RegExp(definicao.validacao);
                 if (!regex.test(String(campo.valor))) {
@@ -265,7 +495,6 @@ export class StockService {
                 }
             }
 
-            // Validar opções de select
             if (definicao.tipo_dados === 'select' && definicao.opcoes && campo.valor) {
                 const opcoes = JSON.parse(definicao.opcoes);
                 if (!opcoes.includes(String(campo.valor))) {
@@ -275,7 +504,6 @@ export class StockService {
                 }
             }
 
-            // Validar tipo de dado
             if (!this.validarTipoDado(campo.valor, definicao.tipo_dados)) {
                 throw new BadRequestException(
                     `Tipo de dado inválido para '${definicao.nome_campo}'. ` +
@@ -289,9 +517,7 @@ export class StockService {
      * Validar tipo de dado
      */
     private validarTipoDado(valor: any, tipoDados: string): boolean {
-        if (valor === null || valor === undefined) {
-            return true;
-        }
+        if (valor === null || valor === undefined) return true;
 
         switch (tipoDados) {
             case 'number':
@@ -318,32 +544,19 @@ export class StockService {
     }
 
     /**
-     *  Listar configurações de campos personalizados
+     * Listar configurações de campos personalizados
      */
     async listarCamposPersonalizados(): Promise<any[]> {
-        const result = await this.dataSource.query(
-            `SELECT 
-                codigo_campo,
-                nome_campo,
-                tipo_dados,
-                tabela_destino,
-                campo_destino,
-                campo_chave_relacao,
-                tamanho_maximo,
-                obrigatorio,
-                valor_padrao,
-                opcoes,
-                validacao,
-                ordem,
-                grupo,
-                visivel,
-                editavel
-             FROM artigos_campos_personalizados
-             WHERE ativo = 1
-             ORDER BY ordem, grupo, nome_campo`
-        );
-
-        return result;
+        return await this.dataSource.query(`
+            SELECT 
+                codigo_campo, nome_campo, tipo_dados,
+                tabela_destino, campo_destino, campo_chave_relacao,
+                tamanho_maximo, obrigatorio, valor_padrao,
+                opcoes, validacao, ordem, grupo, visivel, editavel
+            FROM artigos_campos_personalizados
+            WHERE ativo = 1
+            ORDER BY ordem, grupo, nome_campo
+        `);
     }
 
     /**

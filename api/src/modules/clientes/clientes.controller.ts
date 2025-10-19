@@ -64,42 +64,42 @@ tudo é revertido (rollback).
         return this.service.criar(dto);
     }
 
-    @Put(':id')
-    @ApiOperation({
-        summary: 'Atualizar cliente existente',
-        description: `
-Atualiza os dados de um cliente. Apenas os campos fornecidos serão atualizados.
+    //     @Put(':id')
+    //     @ApiOperation({
+    //         summary: 'Atualizar cliente existente',
+    //         description: `
+    // Atualiza os dados de um cliente. Apenas os campos fornecidos serão atualizados.
 
-**Campos personalizados:**
-- Atualiza tanto campos genéricos quanto em tabelas externas
-- Se o campo estiver configurado para tabela externa, atualiza lá
-- Caso contrário, atualiza na tabela genérica
-- Remove e recria valores na tabela genérica
+    // **Campos personalizados:**
+    // - Atualiza tanto campos genéricos quanto em tabelas externas
+    // - Se o campo estiver configurado para tabela externa, atualiza lá
+    // - Caso contrário, atualiza na tabela genérica
+    // - Remove e recria valores na tabela genérica
 
-**Validações:**
-- Verifica se o cliente existe
-- Se alterar NIF, verifica se já existe outro cliente com esse NIF
-- Valida todos os campos personalizados antes de atualizar
+    // **Validações:**
+    // - Verifica se o cliente existe
+    // - Se alterar NIF, verifica se já existe outro cliente com esse NIF
+    // - Valida todos os campos personalizados antes de atualizar
 
-**Transações:**
-Toda a operação é feita dentro de uma transação.
-        `
-    })
-    @ApiParam({ name: 'id', description: 'Número do cliente (no)', example: 1 })
-    @ApiResponse({
-        status: 200,
-        description: 'Cliente atualizado com sucesso',
-        type: ClienteResponseDto
-    })
-    @ApiResponse({ status: 401, description: 'Não autenticado' })
-    @ApiResponse({ status: 404, description: 'Cliente não encontrado' })
-    @ApiResponse({ status: 400, description: 'Dados inválidos ou NIF duplicado' })
-    atualizar(
-        @Param('id', ParseIntPipe) id: number,
-        @Body() dto: UpdateClienteDto
-    ) {
-        return this.service.atualizar(id, dto);
-    }
+    // **Transações:**
+    // Toda a operação é feita dentro de uma transação.
+    //         `
+    //     })
+    //     @ApiParam({ name: 'id', description: 'Número do cliente (no)', example: 1 })
+    //     @ApiResponse({
+    //         status: 200,
+    //         description: 'Cliente atualizado com sucesso',
+    //         type: ClienteResponseDto
+    //     })
+    //     @ApiResponse({ status: 401, description: 'Não autenticado' })
+    //     @ApiResponse({ status: 404, description: 'Cliente não encontrado' })
+    //     @ApiResponse({ status: 400, description: 'Dados inválidos ou NIF duplicado' })
+    //     atualizar(
+    //         @Param('id', ParseIntPipe) id: number,
+    //         @Body() dto: UpdateClienteDto
+    //     ) {
+    //         return this.service.atualizar(id, dto);
+    //     }
 
     @Get(':id')
     @ApiOperation({
