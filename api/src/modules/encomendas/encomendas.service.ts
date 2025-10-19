@@ -125,7 +125,7 @@ export class EncomendasService {
             for (const linha of dto.linhas) {
                 const biStamp = this.gerarStamp();
                 const iva = linha.iva || 23;
-                const tabiva = this.getTabIva(iva);
+                const tabiva = 2;
                 const stns = linha.stns ? 1 : 0;
 
                 // Buscar dados do artigo (design, cpoc, familia, etc.)
@@ -272,7 +272,7 @@ export class EncomendasService {
                 for (const linha of dto.linhas) {
                     const biStamp = this.gerarStamp();
                     const iva = linha.iva || 23;
-                    const tabiva = this.getTabIva(iva);
+                    const tabiva = 2;
                     const stns = linha.stns ? 1 : 0;
 
                     const artigo = await this.buscarDadosArtigo(queryRunner, linha.ref);
