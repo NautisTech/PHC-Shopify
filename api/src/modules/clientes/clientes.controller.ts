@@ -193,64 +193,64 @@ Lista todos os clientes com paginação e busca opcional.
         return this.service.listar(paginaValidada, limiteValidado, procura);
     }
 
-    @Get('configuracao/campos-personalizados')
-    @ApiOperation({
-        summary: 'Listar configuração de campos personalizados',
-        description: `
-Retorna a lista de todos os campos personalizados disponíveis para clientes.
+    //     @Get('configuracao/campos-personalizados')
+    //     @ApiOperation({
+    //         summary: 'Listar configuração de campos personalizados',
+    //         description: `
+    // Retorna a lista de todos os campos personalizados disponíveis para clientes.
 
-**Útil para:**
-- Construir formulários dinâmicos no frontend
-- Validar campos antes de enviar
-- Saber quais campos vão para tabelas externas vs tabela genérica
-- Conhecer validações, tipos de dados e obrigatoriedade
+    // **Útil para:**
+    // - Construir formulários dinâmicos no frontend
+    // - Validar campos antes de enviar
+    // - Saber quais campos vão para tabelas externas vs tabela genérica
+    // - Conhecer validações, tipos de dados e obrigatoriedade
 
-**Informações retornadas:**
-- codigo_campo: Identificador único do campo
-- nome_campo: Nome amigável para exibição
-- tipo_dados: text, number, date, boolean, select, etc.
-- tabela_destino: Tabela PHC onde o campo é guardado (NULL = tabela genérica)
-- campo_destino: Coluna na tabela destino
-- obrigatorio: Se o campo é obrigatório
-- opcoes: Array de opções para campos tipo 'select'
-- validacao: Expressão regular para validação
-        `
-    })
-    @ApiResponse({
-        status: 200,
-        description: 'Lista de configurações',
-        type: [ConfiguracaoCampoDto],
-    })
-    @ApiResponse({ status: 401, description: 'Não autenticado' })
-    listarCamposPersonalizados() {
-        return this.service.listarCamposPersonalizados();
-    }
+    // **Informações retornadas:**
+    // - codigo_campo: Identificador único do campo
+    // - nome_campo: Nome amigável para exibição
+    // - tipo_dados: text, number, date, boolean, select, etc.
+    // - tabela_destino: Tabela PHC onde o campo é guardado (NULL = tabela genérica)
+    // - campo_destino: Coluna na tabela destino
+    // - obrigatorio: Se o campo é obrigatório
+    // - opcoes: Array de opções para campos tipo 'select'
+    // - validacao: Expressão regular para validação
+    //         `
+    //     })
+    //     @ApiResponse({
+    //         status: 200,
+    //         description: 'Lista de configurações',
+    //         type: [ConfiguracaoCampoDto],
+    //     })
+    //     @ApiResponse({ status: 401, description: 'Não autenticado' })
+    //     listarCamposPersonalizados() {
+    //         return this.service.listarCamposPersonalizados();
+    //     }
 
-    @Get('configuracao/campos-personalizados/:codigo')
-    @ApiOperation({
-        summary: 'Obter configuração de um campo específico',
-        description: `
-Retorna os detalhes de configuração de um campo personalizado.
+    //     @Get('configuracao/campos-personalizados/:codigo')
+    //     @ApiOperation({
+    //         summary: 'Obter configuração de um campo específico',
+    //         description: `
+    // Retorna os detalhes de configuração de um campo personalizado.
 
-**Útil para:**
-- Validar um campo específico no frontend
-- Conhecer as regras de um campo antes de submeter
-- Construir inputs dinâmicos com base na configuração
-        `
-    })
-    @ApiParam({
-        name: 'codigo',
-        description: 'Código do campo personalizado',
-        example: '_id'
-    })
-    @ApiResponse({
-        status: 200,
-        description: 'Configuração do campo',
-        type: ConfiguracaoCampoDto,
-    })
-    @ApiResponse({ status: 401, description: 'Não autenticado' })
-    @ApiResponse({ status: 404, description: 'Campo não encontrado' })
-    obterConfiguracaoCampo(@Param('codigo') codigo: string) {
-        return this.service.obterConfiguracaoCampo(codigo);
-    }
+    // **Útil para:**
+    // - Validar um campo específico no frontend
+    // - Conhecer as regras de um campo antes de submeter
+    // - Construir inputs dinâmicos com base na configuração
+    //         `
+    //     })
+    //     @ApiParam({
+    //         name: 'codigo',
+    //         description: 'Código do campo personalizado',
+    //         example: '_id'
+    //     })
+    //     @ApiResponse({
+    //         status: 200,
+    //         description: 'Configuração do campo',
+    //         type: ConfiguracaoCampoDto,
+    //     })
+    //     @ApiResponse({ status: 401, description: 'Não autenticado' })
+    //     @ApiResponse({ status: 404, description: 'Campo não encontrado' })
+    //     obterConfiguracaoCampo(@Param('codigo') codigo: string) {
+    //         return this.service.obterConfiguracaoCampo(codigo);
+    //     }
 }
