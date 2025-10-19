@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsString, IsNumber, IsArray, ValidateNested, IsOptional, IsEnum, IsInt, Min } from 'class-validator';
+import { IsString, IsNumber, IsArray, ValidateNested, IsOptional, IsEnum, Min, IsBoolean } from 'class-validator';
 import { Type } from 'class-transformer';
 
 // Campo Personalizado
@@ -26,7 +26,7 @@ export class CampoPersonalizadoDto {
     valor: any;
 }
 
-// Linha da Encomenda (Artigo/Serviço)
+// Linha da Encomenda
 export class LinhaEncomendaDto {
     @ApiProperty({
         description: 'Referência do artigo ou serviço',
@@ -35,10 +35,9 @@ export class LinhaEncomendaDto {
     @IsString()
     ref: string;
 
-    @ApiProperty({
-        description: 'Descrição do artigo/serviço (opcional, se não for enviado busca da tabela ST)',
+    @ApiPropertyOptional({
+        description: 'Descrição do artigo/serviço (se não enviado, busca da tabela ST)',
         example: 'Smartphone XYZ Pro',
-        required: false,
     })
     @IsOptional()
     @IsString()
@@ -77,21 +76,22 @@ export class LinhaEncomendaDto {
         default: false,
     })
     @IsOptional()
+    @IsBoolean()
     stns?: boolean;
 }
 
 // CREATE Encomenda DTO
 export class CreateEncomendaDto {
     @ApiProperty({
-        description: 'ID do cliente (pode ser ID interno PHC ou ID externo da Shopify)',
-        example: 'SHOP-12345',
+        description: 'ID do cliente (pode ser ID interno PHC ou ID externo)',
+        example: 'shopify_12345',
     })
     @IsString()
     clienteId: string;
 
     @ApiPropertyOptional({
         description: 'Data da encomenda (ISO 8601). Se não enviado, usa data atual',
-        example: '2025-10-14T10:30:00',
+        example: '2025-10-19T10:30:00',
     })
     @IsOptional()
     @IsString()
@@ -143,7 +143,7 @@ export class CreateEncomendaDto {
 // UPDATE Encomenda DTO
 export class UpdateEncomendaDto {
     @ApiPropertyOptional({
-        description: 'Linhas atualizadas da encomenda',
+        description: 'Linhas atualizadas da encomenda (substitui todas as linhas)',
         type: [LinhaEncomendaDto],
     })
     @IsOptional()
@@ -180,7 +180,7 @@ export class EncomendaResponseDto {
     @ApiProperty({ example: 2025 })
     boano: number;
 
-    @ApiProperty({ example: 'Encomenda - 1 - SHOP-12345' })
+    @ApiProperty({ example: 'Encomenda - 1 - shopify_12345' })
     nmdos: string;
 
     @ApiProperty({ example: 1299.98 })
@@ -190,11 +190,54 @@ export class EncomendaResponseDto {
     mensagem: string;
 }
 
+export class LinhaEncomendaResponseDto {
+    @ApiProperty({ example: 'ART-001' })
+    ref: string;
+
+    @ApiProperty({ example: 'Smartphone XYZ Pro' })
+    design: string;
+
+    @ApiProperty({ example: 2 })
+    qtt: number;
+
+    @ApiProperty({ example: 599.99 })
+    preco: number;
+
+    @ApiProperty({ example: 23 })
+    iva: number;
+
+    @ApiProperty({ example: 1199.98 })
+    total: number;
+
+    @ApiProperty({ example: false })
+    stns: boolean;
+}
+
+export class CampoPersonalizadoResponseDto {
+    @ApiProperty({ example: 'metodo_pagamento' })
+    codigo: string;
+
+    @ApiProperty({ example: 'Método de Pagamento' })
+    nome: string;
+
+    @ApiProperty({ example: 'select' })
+    tipo: string;
+
+    @ApiPropertyOptional({ example: 'Pagamento' })
+    grupo?: string;
+
+    @ApiPropertyOptional({ example: 'bo' })
+    tabela_destino?: string;
+
+    @ApiProperty({ example: 'Multibanco' })
+    valor: any;
+}
+
 export class EncomendaDetalheDto {
     @ApiProperty({ example: 1 })
     ndos: number;
 
-    @ApiProperty({ example: 'Encomenda - 1 - SHOP-12345' })
+    @ApiProperty({ example: 'Encomenda - 1 - shopify_12345' })
     nmdos: string;
 
     @ApiProperty({ example: 1 })
@@ -203,7 +246,7 @@ export class EncomendaDetalheDto {
     @ApiProperty({ example: 2025 })
     boano: number;
 
-    @ApiProperty({ example: '2025-10-14T10:30:00' })
+    @ApiProperty({ example: '2025-10-19T10:30:00' })
     dataobra: string;
 
     @ApiProperty({ example: 1 })
@@ -221,31 +264,49 @@ export class EncomendaDetalheDto {
     @ApiProperty({ example: 'EURO' })
     moeda: string;
 
-    @ApiProperty({
-        description: 'Linhas da encomenda',
-        example: [
-            {
-                ref: 'ART-001',
-                design: 'Smartphone XYZ Pro',
-                qtt: 2,
-                preco: 599.99,
-                iva: 23,
-                total: 1199.98
-            }
-        ]
-    })
-    linhas: any[];
+    @ApiProperty({ example: 'abc123def456ghi789jkl012m' })
+    bostamp: string;
 
-    @ApiProperty({
-        description: 'Campos personalizados',
-        example: [
-            { codigo: 'metodo_pagamento', nome: 'Método de Pagamento', valor: 'Multibanco' }
-        ]
-    })
-    camposPersonalizados: any[];
+    @ApiProperty({ type: [LinhaEncomendaResponseDto] })
+    linhas: LinhaEncomendaResponseDto[];
+
+    @ApiProperty({ type: [CampoPersonalizadoResponseDto] })
+    campos_personalizados: CampoPersonalizadoResponseDto[];
 }
 
 export class EncomendaListagemDto {
+    @ApiProperty({ example: 1 })
+    ndos: number;
+
+    @ApiProperty({ example: 'Encomenda - 1 - shopify_12345' })
+    nmdos: string;
+
+    @ApiProperty({ example: 1 })
+    obrano: number;
+
+    @ApiProperty({ example: 2025 })
+    boano: number;
+
+    @ApiProperty({ example: '2025-10-19T10:30:00' })
+    dataobra: string;
+
+    @ApiProperty({ example: 1 })
+    clienteNo: number;
+
+    @ApiProperty({ example: 'João Silva' })
+    clienteNome: string;
+
+    @ApiProperty({ example: '123456789' })
+    clienteNif: string;
+
+    @ApiProperty({ example: 1299.98 })
+    total: number;
+
+    @ApiProperty({ example: 'EURO' })
+    moeda: string;
+}
+
+export class EncomendasPaginadasDto {
     @ApiProperty({ example: 250 })
     total: number;
 
@@ -255,6 +316,55 @@ export class EncomendaListagemDto {
     @ApiProperty({ example: 50 })
     limite: number;
 
-    @ApiProperty({ type: [EncomendaDetalheDto] })
-    dados: EncomendaDetalheDto[];
+    @ApiProperty({ type: [EncomendaListagemDto] })
+    dados: EncomendaListagemDto[];
+}
+
+export class ConfiguracaoCampoDto {
+    @ApiProperty({ example: 'metodo_pagamento' })
+    codigo_campo: string;
+
+    @ApiProperty({ example: 'Método de Pagamento' })
+    nome_campo: string;
+
+    @ApiProperty({ example: 'select' })
+    tipo_dados: string;
+
+    @ApiPropertyOptional({ example: 'bo' })
+    tabela_destino?: string;
+
+    @ApiPropertyOptional({ example: 'fref' })
+    campo_destino?: string;
+
+    @ApiPropertyOptional({ example: 'bostamp' })
+    campo_chave_relacao?: string;
+
+    @ApiPropertyOptional({ example: null })
+    tamanho_maximo?: number;
+
+    @ApiProperty({ example: false })
+    obrigatorio: boolean;
+
+    @ApiPropertyOptional({ example: null })
+    valor_padrao?: string;
+
+    @ApiPropertyOptional({
+        example: '["Multibanco","MBWay","Cartão de Crédito","Transferência Bancária"]'
+    })
+    opcoes?: string;
+
+    @ApiPropertyOptional({ example: null })
+    validacao?: string;
+
+    @ApiProperty({ example: 1 })
+    ordem: number;
+
+    @ApiPropertyOptional({ example: 'Pagamento' })
+    grupo?: string;
+
+    @ApiProperty({ example: true })
+    visivel: boolean;
+
+    @ApiProperty({ example: true })
+    editavel: boolean;
 }
