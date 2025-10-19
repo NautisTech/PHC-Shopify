@@ -1,12 +1,12 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsString, IsEmail, IsOptional, IsArray, ValidateNested, Matches, MinLength, MaxLength, IsNumber, IsBoolean } from 'class-validator';
+import { IsString, IsEmail, IsOptional, IsArray, ValidateNested, Matches, MinLength, MaxLength } from 'class-validator';
 import { Type } from 'class-transformer';
 
 // Campo Personalizado
 export class CampoPersonalizadoDto {
     @ApiProperty({
         description: 'Código do campo personalizado',
-        example: 'vencimento',
+        example: '_id',
     })
     @IsString()
     codigo: string;
@@ -14,14 +14,14 @@ export class CampoPersonalizadoDto {
     @ApiProperty({
         description: 'Tipo de dado do campo',
         enum: ['text', 'number', 'decimal', 'date', 'datetime', 'boolean', 'select', 'json'],
-        example: 'number',
+        example: 'text',
     })
     @IsString()
     tipo: string;
 
     @ApiProperty({
         description: 'Valor do campo personalizado',
-        example: 30,
+        example: 'shopify_12345',
     })
     valor: any;
 }
@@ -39,7 +39,7 @@ export class CreateClienteDto {
     @MaxLength(255, { message: 'Nome deve ter no máximo 255 caracteres' })
     nome: string;
 
-    @ApiProperty({
+    @ApiPropertyOptional({
         description: 'NIF do cliente (9 dígitos). Se vazio/null, será atribuído ao Consumidor Final',
         example: '123456789',
         required: false,
@@ -99,12 +99,12 @@ export class CreateClienteDto {
     local?: string;
 
     @ApiPropertyOptional({
-        description: 'Código Postal (formato: 0000-000)',
-        example: '1000-100',
-        pattern: '^[0-9]{4}-[0-9]{3}$',
+        description: 'Código Postal (formato: 0000-000 Localidade)',
+        example: '1000-100 Lisboa',
+        pattern: '^[0-9]{4}-[0-9]{3}',
     })
     @IsOptional()
-    @Matches(/^[0-9]{4}-[0-9]{3}$/, { message: 'Código Postal deve ter o formato 0000-000' })
+    @Matches(/^[0-9]{4}-[0-9]{3}/, { message: 'Código Postal deve ter o formato 0000-000' })
     codigoPostal?: string;
 
     @ApiPropertyOptional({
@@ -144,8 +144,8 @@ export class CreateClienteDto {
         description: 'Campos personalizados do cliente',
         type: [CampoPersonalizadoDto],
         example: [
-            { codigo: 'vencimento', tipo: 'number', valor: 30 },
-            { codigo: 'alimite', tipo: 'boolean', valor: false }
+            { codigo: '_id', tipo: 'text', valor: 'shopify_12345' },
+            { codigo: 'data_aniversario', tipo: 'date', valor: '1990-05-15' }
         ],
     })
     @IsOptional()
@@ -279,6 +279,29 @@ export class ClienteResponseDto {
 
     @ApiProperty({ example: 'Cliente criado com sucesso' })
     mensagem: string;
+
+    @ApiPropertyOptional({ example: false })
+    isConsumidorFinal?: boolean;
+}
+
+export class CampoPersonalizadoResponseDto {
+    @ApiProperty({ example: '_id' })
+    codigo: string;
+
+    @ApiProperty({ example: 'ID Externo' })
+    nome: string;
+
+    @ApiProperty({ example: 'text' })
+    tipo: string;
+
+    @ApiPropertyOptional({ example: 'Comercial' })
+    grupo?: string;
+
+    @ApiPropertyOptional({ example: 'cl' })
+    tabela_destino?: string;
+
+    @ApiProperty({ example: 'shopify_12345' })
+    valor: any;
 }
 
 export class ClienteDetalheResponseDto {
@@ -286,47 +309,155 @@ export class ClienteDetalheResponseDto {
     no: number;
 
     @ApiProperty({ example: 'João Silva' })
-    nome: string;
+    Nome: string;
 
     @ApiProperty({ example: '123456789' })
     ncont: string;
 
     @ApiProperty({ example: 'EUR' })
+    MOEDA: string;
+
+    @ApiPropertyOptional({ example: '+351212345678' })
+    telefone?: string;
+
+    @ApiPropertyOptional({ example: '+351912345678' })
+    tlmvl?: string;
+
+    @ApiPropertyOptional({ example: 'Rua das Flores, 123' })
+    morada?: string;
+
+    @ApiPropertyOptional({ example: 'Lisboa' })
+    Local?: string;
+
+    @ApiPropertyOptional({ example: '1000-100' })
+    codpost?: string;
+
+    @ApiPropertyOptional({ example: 'joao.silva@email.com' })
+    email?: string;
+
+    @ApiProperty({ example: 'PT' })
+    PAIS: string;
+
+    @ApiPropertyOptional({ example: 'Portugal' })
+    descpais?: string;
+
+    @ApiPropertyOptional({ example: 'Armazém Principal' })
+    descarga?: string;
+
+    @ApiPropertyOptional({ example: 'Cliente preferencial' })
+    obs?: string;
+
+    @ApiProperty({ example: 0 })
+    VENCIMENTO: number;
+
+    @ApiProperty({ example: 0 })
+    ALIMITE: number;
+
+    @ApiProperty({ example: 'abc123def456ghi789jkl012m' })
+    clstamp: string;
+
+    @ApiPropertyOptional({ type: [CampoPersonalizadoResponseDto] })
+    campos_personalizados?: CampoPersonalizadoResponseDto[];
+}
+
+export class ClienteListagemDto {
+    @ApiProperty({ example: 1 })
+    no: number;
+
+    @ApiProperty({ example: 'João Silva' })
+    Nome: string;
+
+    @ApiProperty({ example: '123456789' })
+    nif: string;
+
+    @ApiProperty({ example: 'EUR' })
     moeda: string;
 
-    @ApiProperty({ example: '+351212345678' })
-    telefone: string;
+    @ApiPropertyOptional({ example: '+351212345678' })
+    telefone?: string;
 
-    @ApiProperty({ example: '+351912345678' })
-    tlmvl: string;
+    @ApiPropertyOptional({ example: '+351912345678' })
+    telemovel?: string;
 
-    @ApiProperty({ example: 'Rua das Flores, 123' })
-    morada: string;
+    @ApiPropertyOptional({ example: 'Rua das Flores, 123' })
+    morada?: string;
 
-    @ApiProperty({ example: 'Lisboa' })
-    local: string;
+    @ApiPropertyOptional({ example: 'Lisboa' })
+    localidade?: string;
 
-    @ApiProperty({ example: '1000-100' })
-    codpost: string;
+    @ApiPropertyOptional({ example: '1000-100' })
+    codigoPostal?: string;
 
-    @ApiProperty({ example: 'joao.silva@email.com' })
-    email: string;
+    @ApiPropertyOptional({ example: 'joao.silva@email.com' })
+    email?: string;
 
     @ApiProperty({ example: 'PT' })
     pais: string;
 
-    @ApiProperty({ example: 'Portugal' })
-    descpais: string;
+    @ApiProperty({ example: true })
+    ativo: boolean;
+}
 
-    @ApiProperty({ example: 30 })
-    vencimento: number;
+export class ClientesPaginadosDto {
+    @ApiProperty({ example: 100 })
+    total: number;
+
+    @ApiProperty({ example: 1 })
+    pagina: number;
+
+    @ApiProperty({ example: 50 })
+    limite: number;
+
+    @ApiProperty({ example: 2 })
+    totalPaginas: number;
+
+    @ApiProperty({ type: [ClienteListagemDto] })
+    dados: ClienteListagemDto[];
+}
+
+export class ConfiguracaoCampoDto {
+    @ApiProperty({ example: '_id' })
+    codigo_campo: string;
+
+    @ApiProperty({ example: 'ID Externo' })
+    nome_campo: string;
+
+    @ApiProperty({ example: 'text' })
+    tipo_dados: string;
+
+    @ApiPropertyOptional({ example: 'cl' })
+    tabela_destino?: string;
+
+    @ApiPropertyOptional({ example: '_id' })
+    campo_destino?: string;
+
+    @ApiPropertyOptional({ example: 'no' })
+    campo_chave_relacao?: string;
+
+    @ApiPropertyOptional({ example: 100 })
+    tamanho_maximo?: number;
 
     @ApiProperty({ example: false })
-    alimite: boolean;
+    obrigatorio: boolean;
 
-    @ApiProperty({ example: '2025-10-14T10:30:00' })
-    usrdata: string;
+    @ApiPropertyOptional({ example: null })
+    valor_padrao?: string;
 
-    @ApiProperty({ example: 'web' })
-    usrinis: string;
+    @ApiPropertyOptional({ example: null })
+    opcoes?: string;
+
+    @ApiPropertyOptional({ example: null })
+    validacao?: string;
+
+    @ApiProperty({ example: 1 })
+    ordem: number;
+
+    @ApiPropertyOptional({ example: 'Comercial' })
+    grupo?: string;
+
+    @ApiProperty({ example: true })
+    visivel: boolean;
+
+    @ApiProperty({ example: true })
+    editavel: boolean;
 }

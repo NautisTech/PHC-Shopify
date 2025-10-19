@@ -1,8 +1,8 @@
 import { Controller, Get, Post, Put, Body, Param, Query, ParseIntPipe, NotFoundException, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiParam, ApiQuery, ApiBearerAuth } from '@nestjs/swagger';
 import { ClientesService } from './clientes.service';
-import { CreateClienteDto, UpdateClienteDto, ClienteResponseDto, ClienteDetalheResponseDto } from './clientes.dto';
 import { AuthGuard } from '../../guards/auth.guard';
+import { CreateClienteDto, UpdateClienteDto, ClienteResponseDto, ClientesPaginadosDto, ClienteDetalheResponseDto, ConfiguracaoCampoDto } from './clientes.dto';
 
 @ApiTags('Clientes')
 @ApiBearerAuth('bearer')
@@ -15,22 +15,26 @@ export class ClientesController {
     @ApiOperation({
         summary: 'Criar novo cliente',
         description: `
-    Cria um novo cliente no PHC com suporte a campos personalizados em tabelas externas.
-    
-    **Regras:**
-    - Se o NIF for fornecido: cria um novo cliente com todos os dados
-    - Se o NIF for vazio/null: retorna o ID do cliente "Consumidor Final"
-    
-    **Campos Personalizados:**
-    - Podem ser guardados na tabela genérica (cl_valores_personalizados)
-    - Ou em tabelas específicas do PHC (ex: cl_info, cl2, etc.)
-    - A configuração determina onde cada campo é guardado
-    
-    **Exemplos de campos:**
-    - nome_empresa → vai para cl_info.nome_empresa
-    - data_aniversario → vai para cl_valores_personalizados
-    - zona_comercial → vai para cl2.zona
-    `
+Cria um novo cliente no PHC com suporte a campos personalizados.
+
+**Regras:**
+- Se o NIF for fornecido: cria um novo cliente com todos os dados
+- Se o NIF for vazio/null: retorna o ID do cliente "Consumidor Final"
+
+**Campos Personalizados:**
+- Podem ser guardados na tabela genérica (cl_valores_personalizados)
+- Ou em tabelas específicas do PHC (ex: cl, cl2, etc.)
+- A configuração na tabela cl_campos_personalizados determina onde cada campo é guardado
+
+**Exemplos de campos:**
+- _id → vai para cl._id (campo externo como Shopify ID)
+- data_aniversario → vai para cl_valores_personalizados
+- zona_comercial → pode ir para cl2.zona (se configurado)
+
+**Transações:**
+Toda a operação é feita dentro de uma transação. Se houver erro em qualquer etapa, 
+tudo é revertido (rollback).
+        `
     })
     @ApiResponse({
         status: 201,
@@ -45,10 +49,10 @@ export class ClientesController {
     })
     @ApiResponse({
         status: 400,
-        description: 'Dados inválidos',
+        description: 'Dados inválidos ou NIF duplicado',
         example: {
             statusCode: 400,
-            message: ['Nome deve ter no mínimo 3 caracteres', 'Campo nome_empresa é obrigatório'],
+            message: 'Já existe um cliente com este NIF',
             error: 'Bad Request'
         }
     })
@@ -64,13 +68,22 @@ export class ClientesController {
     @ApiOperation({
         summary: 'Atualizar cliente existente',
         description: `
-    Atualiza os dados de um cliente. Apenas os campos fornecidos serão atualizados.
-    
-    **Campos personalizados:**
-    - Atualiza tanto campos genéricos quanto em tabelas externas
-    - Se o campo estiver configurado para tabela externa, atualiza lá
-    - Caso contrário, atualiza na tabela genérica
-    `
+Atualiza os dados de um cliente. Apenas os campos fornecidos serão atualizados.
+
+**Campos personalizados:**
+- Atualiza tanto campos genéricos quanto em tabelas externas
+- Se o campo estiver configurado para tabela externa, atualiza lá
+- Caso contrário, atualiza na tabela genérica
+- Remove e recria valores na tabela genérica
+
+**Validações:**
+- Verifica se o cliente existe
+- Se alterar NIF, verifica se já existe outro cliente com esse NIF
+- Valida todos os campos personalizados antes de atualizar
+
+**Transações:**
+Toda a operação é feita dentro de uma transação.
+        `
     })
     @ApiParam({ name: 'id', description: 'Número do cliente (no)', example: 1 })
     @ApiResponse({
@@ -80,6 +93,7 @@ export class ClientesController {
     })
     @ApiResponse({ status: 401, description: 'Não autenticado' })
     @ApiResponse({ status: 404, description: 'Cliente não encontrado' })
+    @ApiResponse({ status: 400, description: 'Dados inválidos ou NIF duplicado' })
     atualizar(
         @Param('id', ParseIntPipe) id: number,
         @Body() dto: UpdateClienteDto
@@ -91,41 +105,22 @@ export class ClientesController {
     @ApiOperation({
         summary: 'Obter cliente por ID',
         description: `
-    Retorna todos os dados de um cliente, incluindo:
-    - Dados básicos (nome, NIF, morada, etc.)
-    - Campos personalizados genéricos
-    - Campos personalizados de tabelas externas (cl_info, cl2, etc.)
+Retorna todos os dados de um cliente, incluindo:
+- Dados básicos da tabela CL (nome, NIF, morada, etc.)
+- Dados complementares da tabela CL2 (país, descrição país)
+- Campos personalizados genéricos (da tabela cl_valores_personalizados)
+- Campos personalizados de tabelas externas (busca os valores nas tabelas configuradas)
 
-    **Nota:** Os campos de tabelas externas são automaticamente preenchidos
-    `
+**Campos Externos:**
+Para cada campo configurado para uma tabela externa (ex: cl._id), 
+a API busca o valor real dessa tabela e retorna junto com os dados.
+        `
     })
     @ApiParam({ name: 'id', description: 'Número do cliente (no)', example: 1 })
     @ApiResponse({
         status: 200,
         description: 'Cliente encontrado',
         type: ClienteDetalheResponseDto,
-        example: {
-            no: 1,
-            nome: 'João Silva',
-            ncont: '123456789',
-            email: 'joao@email.com',
-            campos_personalizados: [
-                {
-                    codigo: 'nome_empresa',
-                    nome: 'Nome da Empresa',
-                    tipo: 'text',
-                    valor: 'TESTE LDA',
-                    tabela_destino: 'cl_info'
-                },
-                {
-                    codigo: 'data_aniversario',
-                    nome: 'Data de Aniversário',
-                    tipo: 'date',
-                    valor: '1990-05-15',
-                    tabela_destino: null
-                }
-            ]
-        }
     })
     @ApiResponse({ status: 401, description: 'Não autenticado' })
     @ApiResponse({ status: 404, description: 'Cliente não encontrado' })
@@ -135,19 +130,25 @@ export class ClientesController {
 
     @Get('nif/:nif')
     @ApiOperation({
-        summary: 'Obtem cliente por NIF',
-        description: 'Procura um cliente pelo NIF'
+        summary: 'Obter cliente por NIF',
+        description: 'Procura um cliente pelo NIF. Retorna dados básicos do cliente.'
     })
     @ApiParam({ name: 'nif', description: 'NIF do cliente (9 dígitos)', example: '123456789' })
     @ApiResponse({
         status: 200,
         description: 'Cliente encontrado',
-        type: ClienteDetalheResponseDto
+        example: {
+            no: 1,
+            Nome: 'João Silva',
+            ncont: '123456789',
+            clstamp: 'abc123def456ghi789jkl012m',
+            email: 'joao.silva@email.com'
+        }
     })
     @ApiResponse({ status: 401, description: 'Não autenticado' })
     @ApiResponse({ status: 404, description: 'Cliente não encontrado' })
-    obtemPorNif(@Param('nif') nif: string) {
-        const cliente = this.service.obterPorNif(nif);
+    async obterPorNif(@Param('nif') nif: string) {
+        const cliente = await this.service.obterPorNif(nif);
         if (!cliente) {
             throw new NotFoundException('Cliente não encontrado');
         }
@@ -157,28 +158,28 @@ export class ClientesController {
     @Get()
     @ApiOperation({
         summary: 'Listar clientes',
-        description: 'Lista todos os clientes com paginação e procura opcional'
+        description: `
+Lista todos os clientes com paginação e busca opcional.
+
+**Paginação:**
+- Controla através dos parâmetros 'pagina' e 'limite'
+- Retorna total de registos e total de páginas
+
+**Busca:**
+- Procura por nome, NIF, email ou número do cliente
+- Usa operador LIKE para busca parcial
+
+**Filtros:**
+- Apenas clientes ativos (inactivo = 0 ou NULL)
+        `
     })
     @ApiQuery({ name: 'pagina', required: false, example: 1, description: 'Número da página' })
-    @ApiQuery({ name: 'limite', required: false, example: 50, description: 'Registros por página' })
-    @ApiQuery({ name: 'procura', required: false, example: 'João', description: 'Procura por nome, NIF ou email' })
+    @ApiQuery({ name: 'limite', required: false, example: 50, description: 'Registos por página (máximo 100)' })
+    @ApiQuery({ name: 'procura', required: false, example: 'João', description: 'Termo de busca (nome, NIF, email)' })
     @ApiResponse({
         status: 200,
         description: 'Lista de clientes',
-        example: {
-            total: 100,
-            pagina: 1,
-            limite: 50,
-            dados: [
-                {
-                    no: 1,
-                    nome: 'João Silva',
-                    ncont: '123456789',
-                    email: 'joao@email.com',
-                    telefone: '+351212345678'
-                }
-            ]
-        }
+        type: ClientesPaginadosDto,
     })
     @ApiResponse({ status: 401, description: 'Não autenticado' })
     listar(
@@ -186,48 +187,39 @@ export class ClientesController {
         @Query('limite') limite?: number,
         @Query('procura') procura?: string
     ) {
-        return this.service.listar(pagina, limite, procura);
+        const paginaValidada = Math.max(1, pagina || 1);
+        const limiteValidado = Math.min(100, Math.max(1, limite || 50));
+
+        return this.service.listar(paginaValidada, limiteValidado, procura);
     }
 
     @Get('configuracao/campos-personalizados')
     @ApiOperation({
         summary: 'Listar configuração de campos personalizados',
         description: `
-    Retorna a lista de todos os campos personalizados disponíveis para clientes.
-    
-    **Útil para:**
-    - Construir formulários dinâmicos
-    - Validar campos antes de enviar
-    - Saber quais campos vão para tabelas externas
-    `
+Retorna a lista de todos os campos personalizados disponíveis para clientes.
+
+**Útil para:**
+- Construir formulários dinâmicos no frontend
+- Validar campos antes de enviar
+- Saber quais campos vão para tabelas externas vs tabela genérica
+- Conhecer validações, tipos de dados e obrigatoriedade
+
+**Informações retornadas:**
+- codigo_campo: Identificador único do campo
+- nome_campo: Nome amigável para exibição
+- tipo_dados: text, number, date, boolean, select, etc.
+- tabela_destino: Tabela PHC onde o campo é guardado (NULL = tabela genérica)
+- campo_destino: Coluna na tabela destino
+- obrigatorio: Se o campo é obrigatório
+- opcoes: Array de opções para campos tipo 'select'
+- validacao: Expressão regular para validação
+        `
     })
     @ApiResponse({
         status: 200,
         description: 'Lista de configurações',
-        example: [
-            {
-                codigo_campo: 'nome_empresa',
-                nome_campo: 'Nome da Empresa',
-                tipo_dados: 'text',
-                tabela_destino: 'cl_info',
-                campo_destino: 'nome_empresa',
-                campo_chave_relacao: 'cl_no',
-                obrigatorio: false,
-                valor_padrao: null,
-                grupo: 'Comercial',
-                ordem: 1
-            },
-            {
-                codigo_campo: 'data_aniversario',
-                nome_campo: 'Data de Aniversário',
-                tipo_dados: 'date',
-                tabela_destino: null,
-                campo_destino: null,
-                obrigatorio: false,
-                grupo: 'Pessoal',
-                ordem: 10
-            }
-        ]
+        type: [ConfiguracaoCampoDto],
     })
     @ApiResponse({ status: 401, description: 'Não autenticado' })
     listarCamposPersonalizados() {
@@ -237,30 +229,24 @@ export class ClientesController {
     @Get('configuracao/campos-personalizados/:codigo')
     @ApiOperation({
         summary: 'Obter configuração de um campo específico',
-        description: 'Retorna os detalhes de configuração de um campo personalizado'
+        description: `
+Retorna os detalhes de configuração de um campo personalizado.
+
+**Útil para:**
+- Validar um campo específico no frontend
+- Conhecer as regras de um campo antes de submeter
+- Construir inputs dinâmicos com base na configuração
+        `
     })
     @ApiParam({
         name: 'codigo',
         description: 'Código do campo personalizado',
-        example: 'nome_empresa'
+        example: '_id'
     })
     @ApiResponse({
         status: 200,
         description: 'Configuração do campo',
-        example: {
-            codigo_campo: 'nome_empresa',
-            nome_campo: 'Nome da Empresa',
-            tipo_dados: 'text',
-            tabela_destino: 'cl_info',
-            campo_destino: 'nome_empresa',
-            campo_chave_relacao: 'cl_no',
-            tamanho_maximo: 255,
-            obrigatorio: true,
-            validacao: null,
-            opcoes: null,
-            grupo: 'Comercial',
-            ordem: 1
-        }
+        type: ConfiguracaoCampoDto,
     })
     @ApiResponse({ status: 401, description: 'Não autenticado' })
     @ApiResponse({ status: 404, description: 'Campo não encontrado' })
