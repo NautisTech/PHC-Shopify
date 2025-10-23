@@ -10,7 +10,7 @@ async function bootstrap() {
 
   // CORS - Permite requisições de outros domínios
   app.enableCors({
-    origin: [process.env.CORS_ORIGIN?.split(',') || 'http://localhost:3000'],
+    origin: '*',
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
     credentials: true,
   });
