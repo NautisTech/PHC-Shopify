@@ -18,7 +18,7 @@ export class StockController {
 Lista todos os artigos do PHC com paginação e busca opcional.
 
 **Filtros Aplicados:**
-- Apenas artigos com _site = 1 (disponíveis para web/e-commerce)
+- Apenas artigos com u_site = 1 (disponíveis para web/e-commerce)
 
 **Inclui:**
 - Dados base do artigo (título, referência, preço, stock)
@@ -72,7 +72,7 @@ isto pode ter impacto. Considere aumentar o cache ou usar índices.
     @ApiOperation({
         summary: 'Listar artigos ainda não sincronizados',
         description: `
-Retorna artigos que ainda não têm código externo registado (_id = 0).
+Retorna artigos que ainda não têm código externo registado (u_id = 0).
 
 **Útil para:**
 - Sincronização inicial com aplicações externas (Shopify, WooCommerce, etc.)
@@ -80,8 +80,8 @@ Retorna artigos que ainda não têm código externo registado (_id = 0).
 - Processos de integração automática
 
 **Filtros:**
-- _site = 1 (apenas artigos para web)
-- _id = 0 (sem código externo)
+- u_site = 1 (apenas artigos para web)
+- u_id = 0 (sem código externo)
 
 **Ordenação:** Por referência descendente (mais recentes primeiro)
         `
@@ -144,7 +144,7 @@ a API busca o valor real dessa tabela e retorna junto com os dados.
 Regista o código/ID que a aplicação externa usa para identificar este artigo.
 
 **Funcionalidades:**
-- Atualiza o campo _id na tabela st
+- Atualiza o campo u_id na tabela st
 - Valida se o código já está em uso por outro artigo
 - Opcionalmente atualiza campos personalizados (ex: data_sincronizacao, sincronizado)
 

@@ -8,7 +8,7 @@
 -- ============================================
 
 -- Tabela de configuração de campos personalizados de clientes
-IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[cl_campos_personalizados]'))
+IF NOT EXISTS (SELECT * FROM sys.objects WHERE objectu_id = OBJECTu_id(N'[dbo].[cl_campos_personalizados]'))
 BEGIN
     CREATE TABLE [dbo].[cl_campos_personalizados] (
         id INT IDENTITY(1,1) PRIMARY KEY,
@@ -36,7 +36,7 @@ END
 GO
 
 -- Tabela de valores personalizados de clientes (genérica)
-IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[cl_valores_personalizados]'))
+IF NOT EXISTS (SELECT * FROM sys.objects WHERE objectu_id = OBJECTu_id(N'[dbo].[cl_valores_personalizados]'))
 BEGIN
     CREATE TABLE [dbo].[cl_valores_personalizados] (
         id INT IDENTITY(1,1) PRIMARY KEY,
@@ -63,7 +63,7 @@ GO
 -- ============================================
 
 -- Tabela de configuração de campos personalizados de encomendas
-IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[encomendas_campos_personalizados]'))
+IF NOT EXISTS (SELECT * FROM sys.objects WHERE objectu_id = OBJECTu_id(N'[dbo].[encomendas_campos_personalizados]'))
 BEGIN
     CREATE TABLE [dbo].[encomendas_campos_personalizados] (
         id INT IDENTITY(1,1) PRIMARY KEY,
@@ -91,7 +91,7 @@ END
 GO
 
 -- Tabela de valores personalizados de encomendas (genérica)
-IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[encomendas_valores_personalizados]'))
+IF NOT EXISTS (SELECT * FROM sys.objects WHERE objectu_id = OBJECTu_id(N'[dbo].[encomendas_valores_personalizados]'))
 BEGIN
     CREATE TABLE [dbo].[encomendas_valores_personalizados] (
         id INT IDENTITY(1,1) PRIMARY KEY,
@@ -118,7 +118,7 @@ GO
 -- ============================================
 
 -- Tabela de configuração de campos personalizados de artigos
-IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[artigos_campos_personalizados]'))
+IF NOT EXISTS (SELECT * FROM sys.objects WHERE objectu_id = OBJECTu_id(N'[dbo].[artigos_campos_personalizados]'))
 BEGIN
     CREATE TABLE [dbo].[artigos_campos_personalizados] (
         id INT IDENTITY(1,1) PRIMARY KEY,
@@ -146,7 +146,7 @@ END
 GO
 
 -- Tabela de valores personalizados de artigos (genérica)
-IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[artigos_valores_personalizados]'))
+IF NOT EXISTS (SELECT * FROM sys.objects WHERE objectu_id = OBJECTu_id(N'[dbo].[artigos_valores_personalizados]'))
 BEGIN
     CREATE TABLE [dbo].[artigos_valores_personalizados] (
         id INT IDENTITY(1,1) PRIMARY KEY,
@@ -167,3 +167,59 @@ BEGIN
     CREATE INDEX IX_art_valores_codigo_campo ON artigos_valores_personalizados(codigo_campo);
 END
 GO
+
+
+INSERT INTO artigos_campos_personalizados (
+    codigo_campo,
+    nome_campo,
+    tipo_dados,
+    tabela_destino,
+    campo_destino,
+    campo_chave_relacao,
+    tamanho_maximo,
+    obrigatorio,
+    valor_padrao,
+    opcoes,
+    validacao,
+    ordem,
+    grupo,
+    visivel,
+    editavel,
+    configuracao_extra,
+    ativo
+)
+VALUES 
+-- Bool de sincronização com site
+('u_site', 'Site ativo', 'boolean', 'st', 'u_site', 'ststamp', NULL, 0, '0', NULL, NULL, 1, 'Integração', 1, 1, NULL, 1),
+
+-- Id externo
+('u_id', 'Identificador externo', 'number', 'st', 'u_id', 'ststamp', NULL, 0, '0', NULL, NULL, 2, 'Integração', 1, 1, NULL, 1),
+
+-- Imagem 1
+('imagem', 'URL Imagem', 'text', 'st', 'imagem', 'ststamp', 128, 0, NULL, NULL, NULL, 3, 'Integração', 1, 1, NULL, 1),
+
+-- Imagem 2
+('imagem1', 'URL Imagem 1', 'text', 'st', 'u_imagem1', 'ststamp', 128, 0, NULL, NULL, NULL, 4, 'Integração', 1, 1, NULL, 1),
+
+-- Ficha Técnica
+('ft', 'Ficha Técnica', 'text', 'st', 'u_ft', 'ststamp', 128, 0, NULL, NULL, NULL, 5, 'Integração', 1, 1, NULL, 1);
+
+
+INSERT INTO cl_campos_personalizados (
+    codigo_campo,
+    nome_campo,
+    tipo_dados,
+    tabela_destino,
+    campo_destino,
+    campo_chave_relacao,
+    obrigatorio,
+    valor_padrao,
+    ordem,
+    grupo,
+    visivel,
+    editavel,
+    ativo
+)
+VALUES 
+-- Id externo
+('u_id', 'Identificador externo', 'number', 'cl', 'u_id', 'clstamp', 0, '0', 1, 'Integração', 1, 1, 1);

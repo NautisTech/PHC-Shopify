@@ -1,12 +1,12 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsString, IsEmail, IsOptional, IsArray, ValidateNested, Matches, MinLength, MaxLength } from 'class-validator';
+import { IsString, IsEmail, IsOptional, IsArray, ValidateNested, Matches, MinLength, MaxLength, IsNumber } from 'class-validator';
 import { Type } from 'class-transformer';
 
 // Campo Personalizado
 export class CampoPersonalizadoDto {
     @ApiProperty({
         description: 'Código do campo personalizado',
-        example: '_id',
+        example: 'U_IDFRONT',
     })
     @IsString()
     codigo: string;
@@ -48,6 +48,15 @@ export class CreateClienteDto {
     @IsOptional()
     @Matches(/^[0-9]{9}$/, { message: 'NIF deve ter exatamente 9 dígitos' })
     nif?: string;
+
+    // @ApiPropertyOptional({
+    //     description: 'PNCONT (país) do cliente',
+    //     example: 'PT',
+    //     default: 'PT',
+    // })
+    // @IsOptional()
+    // @IsString()
+    // pncont?: string;
 
     @ApiPropertyOptional({
         description: 'Moeda do cliente',
@@ -125,6 +134,16 @@ export class CreateClienteDto {
     pais?: string;
 
     @ApiPropertyOptional({
+        description: 'Código do país (número)',
+        example: '1',
+        default: 1,
+        enum: ['1', '2', '3'],
+    })
+    @IsOptional()
+    @IsNumber()
+    noPais?: number;
+
+    @ApiPropertyOptional({
         description: 'Local de descarga/entrega',
         example: 'Armazém Principal',
     })
@@ -144,7 +163,7 @@ export class CreateClienteDto {
         description: 'Campos personalizados do cliente',
         type: [CampoPersonalizadoDto],
         example: [
-            { codigo: '_id', tipo: 'text', valor: 'shopify_12345' },
+            { codigo: 'U_IDFRONT', tipo: 'text', valor: 'shopify_12345' },
             { codigo: 'data_aniversario', tipo: 'date', valor: '1990-05-15' }
         ],
     })
@@ -285,7 +304,7 @@ export class ClienteResponseDto {
 }
 
 export class CampoPersonalizadoResponseDto {
-    @ApiProperty({ example: '_id' })
+    @ApiProperty({ example: 'U_IDFRONT' })
     codigo: string;
 
     @ApiProperty({ example: 'ID Externo' })
@@ -416,7 +435,7 @@ export class ClientesPaginadosDto {
 }
 
 export class ConfiguracaoCampoDto {
-    @ApiProperty({ example: '_id' })
+    @ApiProperty({ example: 'U_IDFRONT' })
     codigo_campo: string;
 
     @ApiProperty({ example: 'ID Externo' })
@@ -428,7 +447,7 @@ export class ConfiguracaoCampoDto {
     @ApiPropertyOptional({ example: 'cl' })
     tabela_destino?: string;
 
-    @ApiPropertyOptional({ example: '_id' })
+    @ApiPropertyOptional({ example: 'U_IDFRONT' })
     campo_destino?: string;
 
     @ApiPropertyOptional({ example: 'no' })

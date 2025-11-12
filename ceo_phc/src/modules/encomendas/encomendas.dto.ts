@@ -35,14 +35,6 @@ export class LinhaEncomendaDto {
     @IsString()
     ref: string;
 
-    @ApiPropertyOptional({
-        description: 'Descrição do artigo/serviço (se não enviado, busca da tabela ST)',
-        example: 'Smartphone XYZ Pro',
-    })
-    @IsOptional()
-    @IsString()
-    design?: string;
-
     @ApiProperty({
         description: 'Quantidade',
         example: 2,
@@ -87,6 +79,7 @@ export class CreateEncomendaDto {
         example: 'shopify_12345',
     })
     @IsString()
+    @IsOptional()
     clienteId: string;
 
     @ApiPropertyOptional({

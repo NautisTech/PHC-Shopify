@@ -21,7 +21,7 @@ export class StockService {
         const offset = (pagina - 1) * limite;
 
         // Construir WHERE clause
-        let whereClause = '_site = 1';
+        let whereClause = 'u_site = 1';
         const params: any[] = [];
         let paramIndex = 0;
 
@@ -56,7 +56,7 @@ export class StockService {
                 st.peso AS peso,
                 st.stock AS stock,
                 st.url AS fichaTecnica,
-                st._id AS codigoExterno,
+                st.u_id AS codigoExterno,
                 st.familia AS familia,
                 st.faminome AS familiaNome,
                 st.tabiva AS taxaIVA,
@@ -99,7 +99,7 @@ export class StockService {
                 st.peso AS peso,
                 st.stock AS stock,
                 st.url AS fichaTecnica,
-                st._id AS codigoExterno,
+                st.u_id AS codigoExterno,
                 st.familia AS familia,
                 st.faminome AS familiaNome,
                 st.tabiva AS taxaIVA,
@@ -240,7 +240,7 @@ export class StockService {
 
         // Verificar se código externo já está em uso
         const codigoEmUso = await this.dataSource.query(
-            `SELECT ref FROM st WHERE _id = @0 AND ref != @1`,
+            `SELECT ref FROM st WHERE u_id = @0 AND ref != @1`,
             [dto.codigoExterno, referencia]
         );
 
@@ -264,7 +264,7 @@ export class StockService {
 
             // Atualizar código externo
             await queryRunner.query(
-                `UPDATE st SET _id = @0, ousrdata = @1 WHERE ref = @2`,
+                `UPDATE st SET u_id = @0, ousrdata = @1 WHERE ref = @2`,
                 [dto.codigoExterno, dataAtual, referencia]
             );
 
@@ -453,7 +453,7 @@ export class StockService {
                 st.fornecedor AS fornecedor,
                 st.fornec AS codigoFornecedor
             FROM st
-            WHERE st._id = 0 AND st._site = 1
+            WHERE st.u_id = 0 AND st.u_site = 1
             ORDER BY st.ref DESC
         `, [limite]);
 

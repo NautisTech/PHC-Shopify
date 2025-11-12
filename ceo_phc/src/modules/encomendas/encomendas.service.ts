@@ -20,9 +20,12 @@ export class EncomendasService {
         }
 
         // Obter dados do cliente
+        let clienteNo = 0;
         const cliente = await this.obterCliente(dto.clienteId);
         if (!cliente) {
-            throw new NotFoundException(`Cliente '${dto.clienteId}' não encontrado`);
+            clienteNo = Number(process.env.CONSUMIDOR_FINAL_NO) || 3; // No do cliente Consumidor Final
+        } else {
+            clienteNo = cliente.no;
         }
 
         // VALIDAR campos personalizados
@@ -50,12 +53,8 @@ export class EncomendasService {
             }
             const totalEscudos = totalEuro * 200.482;
 
-            // Obter próximo ndos
-            const ndosResult = await queryRunner.query(`SELECT ISNULL(MAX(ndos), 0) + 1 AS ndos FROM bo`);
-            const ndos = ndosResult[0].ndos;
-
-            // Gerar nmdos
-            const nmdos = `Encomenda - ${ndos} - ${dto.clienteId}`;
+            const ndos = Number(process.env.NDOS);
+            const nmdos = process.env.NMDOS;
 
             // ========================================
             // 1. INSERIR BO (Cabeçalho)
@@ -74,7 +73,7 @@ export class EncomendasService {
                     @23, @24, @25, @26, @27, @28
                 )
             `, [
-                boStamp, ndos, nmdos, obrano, boano, dataEncomenda, cliente.no, 0,
+                boStamp, ndos, nmdos, obrano, boano, dataEncomenda, clienteNo, 0,
                 cliente.Nome, cliente.ncont, '', cliente.morada, cliente.local, cliente.codpost, 'web',
                 totalEscudos, totalEuro, 'EURO', 'EURO', 0, '', '', 'BO',
                 dataEncomenda, dataEncomenda.toTimeString().split(' ')[0], 'web',
@@ -130,10 +129,7 @@ export class EncomendasService {
 
                 // Buscar dados do artigo (design, cpoc, familia, etc.)
                 const artigo = await this.buscarDadosArtigo(queryRunner, linha.ref);
-                const design = linha.design || artigo?.design || linha.ref;
-
-                // Converter ref para número se necessário
-                const refNumerico = isNaN(Number(linha.ref)) ? 0 : Number(linha.ref);
+                const design = artigo?.design || linha.ref;
 
                 await queryRunner.query(`
                     INSERT INTO bi (
@@ -154,8 +150,8 @@ export class EncomendasService {
                     )
                 `, [
                     biStamp, boStamp, ndos, nmdos, obrano, dataEncomenda, dataEncomenda,
-                    cliente.no, 0, cliente.Nome, cliente.morada, cliente.local, cliente.codpost,
-                    refNumerico, design, stns, linha.qtt,
+                    clienteNo, 0, cliente.Nome, cliente.morada, cliente.local, cliente.codpost,
+                    linha.ref, design, stns, linha.qtt,
                     iva, tabiva, 1, linha.preco * 200.482, linha.preco, linha.preco * 200.482, linha.preco,
                     linha.qtt * linha.preco * 200.482, linha.qtt * linha.preco, lordem,
                     artigo?.cpoc || 0, artigo?.familia || 0, artigo?.unidade || '',
@@ -276,7 +272,7 @@ export class EncomendasService {
                     const stns = linha.stns ? 1 : 0;
 
                     const artigo = await this.buscarDadosArtigo(queryRunner, linha.ref);
-                    const design = linha.design || artigo?.design || linha.ref;
+                    const design = artigo?.design || linha.ref;
 
                     await queryRunner.query(`
                         INSERT INTO bi (
@@ -547,7 +543,7 @@ export class EncomendasService {
             SELECT cl.no, cl.Nome, cl.ncont, cl.morada, cl.local, cl.codpost, 
                    cl.telefone, cl.email, cl.tlmvl
             FROM cl
-            WHERE cl._id = @0
+            WHERE cl.U_IDFRONT = @0
         `, [clienteId]);
 
         return result && result.length > 0 ? result[0] : null;

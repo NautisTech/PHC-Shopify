@@ -42,7 +42,7 @@ async function bootstrap() {
       - Suporte a Consumidor Final (sem NIF)
       
       Stock / Artigos
-      - Listar artigos disponíveis para web (_site = 1)
+      - Listar artigos disponíveis para web (u_site = 1)
       - Obter detalhes de artigos
       - Registar códigos externos (mapeamento com apps externas)
       - Campos personalizados (garantia, categorias, etc.)
@@ -83,17 +83,20 @@ async function bootstrap() {
   });
 
   const port = process.env.PORT || 3000;
-  await app.listen(port);
+  const host = process.env.NODE_ENV === 'production' ? '0.0.0.0' : 'localhost';
+  await app.listen(port, '0.0.0.0');
 
   console.log(`
   ═══════════════════════════════════════════════════════════
                                                              
      API PHC iniciada com sucesso!                        
                                                              
-     Servidor:      http://localhost:${port}                  
-     Documentação:  http://localhost:${port}/api-docs        
-     Health Check:  http://localhost:${port}/api/health       
+     Servidor:      http://${host}:${port}                  
+     Documentação:  http://${host}:${port}/api-docs        
+     Health Check:  http://${host}:${port}/api/health       
      Bearer Token configurado: ${process.env.API_BEARER_TOKEN ? 'Sim' : 'Não'}
+     Ambiente:      ${process.env.NODE_ENV || 'development'}
+     DB Host:       ${process.env.DB_HOST || 'localhost'}
 
   ════════════════════════════════════════════════════════════
   `);

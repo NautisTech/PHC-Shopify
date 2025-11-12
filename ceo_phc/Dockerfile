@@ -29,37 +29,8 @@ RUN npm ci
 # Copia código fonte
 COPY . .
 
-ENV TEM_LOTES=0 \
-    TEM_ARMAZENS=0 \
-    TEM_GESTAO_STOCKS=0 \
-    TEM_NUMEROS_SERIES=0 \
-    TEM_CAMPOS_PERSONALIZADOS=1 \
-    ARMAZEM_DEFAULT=0 \
-    DEPOSITO_DEFAULT=0 \
-    TIPO_DOC_VENDA=0 \
-    TIPO_DOC_COMPRA=0 \
-    TIPO_DOC_STOCK=0 \
-    \
-    # Servidor
-    PORT=3000 \
-    NODE_ENV=development \
-    \
-    # Base de Dados SQL Server
-    DB_HOST=62.28.239.206 \
-    DB_PORT=4000 \
-    DB_USERNAME=sa \
-    DB_PASSWORD="Microlop3s@2025!" \
-    DB_DATABASE=phc \
-    DB_ENCRYPT=false \
-    DB_TRUST_CERT=true \
-    DB_LOGGING=false \
-    \
-    # CORS e Autenticação
-    API_BEARER_TOKEN="fekphfewipjhewfpihbo+efwjfivgpewfhi" \
-    JWT_SECRET="" \
-    JWT_EXPIRES_IN="24h"
-
-# Build da aplicação
+# Build da aplicação (apenas variáveis necessárias para o build)
+ENV NODE_ENV=production
 RUN npm run build
 
 # ================================
@@ -83,12 +54,36 @@ COPY --from=builder --chown=nodeuser:nodejs /app/dist ./dist
 COPY --from=builder --chown=nodeuser:nodejs /app/package*.json ./
 
 # Cria diretório uploads e garante permissões
-RUN mkdir -p /app/uploads && \
-    chown -R nodeuser:nodejs /app && \
-    chmod -R 755 /app/uploads
+RUN chown -R nodeuser:nodejs /app && chmod -R 755 /app
 
-# Define variáveis de ambiente
-ENV PORT=3000
+# Define variáveis de ambiente para produção
+ENV PORT=3000 \
+    NODE_ENV=production \
+    TEM_LOTES=0 \
+    TEM_ARMAZENS=0 \
+    TEM_GESTAO_STOCKS=0 \
+    TEM_NUMEROS_SERIES=0 \
+    TEM_CAMPOS_PERSONALIZADOS=1 \
+    ARMAZEM_DEFAULT=0 \
+    DEPOSITO_DEFAULT=0 \
+    TIPO_DOC_VENDA=0 \
+    TIPO_DOC_COMPRA=0 \
+    TIPO_DOC_STOCK=0 \
+    DB_HOST=192.168.1.9 \
+    DB_PORT=1433 \
+    DB_USERNAME=sa \
+    DB_PASSWORD="Lh2008.." \
+    DB_DATABASE="LHD" \
+    DB_ENCRYPT=false \
+    DB_TRUST_CERT=true \
+    DB_LOGGING=false \
+    API_BEARER_TOKEN="fekphfewipjhewfpihbo+efwjfivgpewfhi" \
+    JWT_SECRET="" \
+    JWT_EXPIRES_IN="24h" \
+    CONSUMIDOR_FINAL_NO=3 \
+    NDOS=10 \
+    NMDOS='Encomenda Via Net' \
+    MOEDA_DEFAULT="EURO"
 
 # Expõe porta (Caprover usa 3000 internamente)
 EXPOSE 3000

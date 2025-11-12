@@ -27,7 +27,7 @@ Cria um novo cliente no PHC com suporte a campos personalizados.
 - A configuração na tabela cl_campos_personalizados determina onde cada campo é guardado
 
 **Exemplos de campos:**
-- _id → vai para cl._id (campo externo como Shopify ID)
+- U_IDFRONT → vai para cl.U_IDFRONT (campo externo como Shopify ID)
 - data_aniversario → vai para cl_valores_personalizados
 - zona_comercial → pode ir para cl2.zona (se configurado)
 
@@ -112,7 +112,7 @@ Retorna todos os dados de um cliente, incluindo:
 - Campos personalizados de tabelas externas (busca os valores nas tabelas configuradas)
 
 **Campos Externos:**
-Para cada campo configurado para uma tabela externa (ex: cl._id), 
+Para cada campo configurado para uma tabela externa (ex: cl.U_IDFRONT),
 a API busca o valor real dessa tabela e retorna junto com os dados.
         `
     })
@@ -241,7 +241,7 @@ Lista todos os clientes com paginação e busca opcional.
     //     @ApiParam({
     //         name: 'codigo',
     //         description: 'Código do campo personalizado',
-    //         example: '_id'
+    //         example: 'u_id'
     //     })
     //     @ApiResponse({
     //         status: 200,

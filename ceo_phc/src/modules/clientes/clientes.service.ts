@@ -31,7 +31,13 @@ export class ClientesService {
         // Verificar se NIF já existe
         const clienteExistente = await this.obterPorNif(dto.nif);
         if (clienteExistente) {
-            throw new BadRequestException('Já existe um cliente com este NIF');
+            throw new BadRequestException(`Já existe um cliente com este NIF (NO: ${clienteExistente.no})`);
+        }
+
+        // Validar NIF
+        const nifValido = await this.validateNIF(dto.nif);
+        if (!nifValido) {
+            throw new BadRequestException('NIF inválido');
         }
 
         // VALIDAR campos personalizados
@@ -55,31 +61,37 @@ export class ClientesService {
             );
             const descPais = paisResult[0]?.nome || 'Portugal';
 
+            const noMax = await queryRunner.query(`SELECT Max(no) AS noMax FROM cl`);
+            const novoNo = (noMax[0].noMax || 0) + 1;
+            const codgMoeda = process.env.MOEDA_DEFAULT || 'EURO';
+
             // ========================================
             // 1. INSERIR NA TABELA CL
             // ========================================
             const insertClResult = await queryRunner.query(`
                 INSERT INTO cl (
-                    Nome, ncont, MOEDA, telefone, tlmvl, morada, Local, codpost, email,
+                    Nome, ncont, no, estab, MOEDA, telefone, tlmvl, morada, Local, codpost, email,
                     PAIS, descarga, obs, clstamp, usrdata, usrinis, usrhora,
-                    ousrdata, ousrinis, ousrhora, VENCIMENTO, ALIMITE
+                    ousrdata, ousrinis, ousrhora, VENCIMENTO, ALIMITE, RADICALTIPOEMP, DESCREGIVA, PNCONT
                 )
                 VALUES (
                     @0, @1, @2, @3, @4, @5, @6, @7, @8, @9, @10, @11, @12,
-                    @13, @14, @15, @16, @17, @18, @19, @20
+                    @13, @14, @15, @16, @17, @18, @19, @20, @21, @22, @23, @24, @25
                 );
                 SELECT SCOPE_IDENTITY() AS clienteNo;
             `, [
                 dto.nome,
                 dto.nif,
-                dto.moeda || 'EUR',
+                novoNo,
+                0,
+                codgMoeda,
                 dto.telefone || null,
                 dto.telemovel || null,
                 dto.morada || null,
                 dto.local || null,
                 dto.codigoPostal || null,
                 dto.email || null,
-                1 || null,
+                dto.noPais || 1,
                 dto.descarga || null,
                 dto.observacoes || null,
                 clStamp,
@@ -90,7 +102,10 @@ export class ClientesService {
                 'web',
                 dataAtual.toTimeString().split(' ')[0],
                 0, // VENCIMENTO
-                0  // ALIMITE
+                0, // ALIMITE
+                1, // RADICALTIPOEMP
+                'PT', // DESCREGIVA
+                dto.pais || 'PT'  // PNCONT
             ]);
 
             const clienteNo = insertClResult[0].clienteNo;
@@ -149,6 +164,27 @@ export class ClientesService {
         }
     }
 
+    private async validateNIF(nif: string) {
+        const validationSets = {
+            one: ['1', '2', '3', '5', '6', '8'],
+            two: ['45', '70', '71', '72', '74', '75', '77', '79', '90', '91', '98', '99']
+        };
+        if (nif.length !== 9) return false;
+        if (!validationSets.one.includes(nif.substring(0, 1)) && !validationSets.two.includes(nif.substring(0, 2))) return false;
+        const nifNumbers = nif.split('').map(c => Number.parseInt(c))
+        const total = nifNumbers[0] * 9 +
+            nifNumbers[1] * 8 +
+            nifNumbers[2] * 7 +
+            nifNumbers[3] * 6 +
+            nifNumbers[4] * 5 +
+            nifNumbers[5] * 4 +
+            nifNumbers[6] * 3 +
+            nifNumbers[7] * 2;
+        const modulo11 = (Number(total) % 11);
+        const checkDigit = modulo11 < 2 ? 0 : 11 - modulo11;
+        return checkDigit === Number(nif[8]);
+    }
+
     /**
      * Atualizar cliente
      */
@@ -163,7 +199,7 @@ export class ClientesService {
         if (dto.nif) {
             const clienteComNif = await this.obterPorNif(dto.nif);
             if (clienteComNif && clienteComNif.no !== id) {
-                throw new BadRequestException('Já existe outro cliente com este NIF');
+                throw new BadRequestException(`Já existe outro cliente com este No: ${clienteComNif.no}`);
             }
         }
 
